@@ -1,0 +1,13 @@
+{
+  "tasks": {
+    "automate": "deno run --env-file --allow-all notebook-automation.ts",
+    "automate:example": "deno run --env-file --allow-all notebook-automation.ts example.json",
+    "automate:with-params": "deno run --env-file --allow-all notebook-automation.ts example.json parameters.json"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "@runt/lib": "jsr:@runt/lib",
+    "@runt/pyodide-runtime-agent": "jsr:@runt/pyodide-runtime-agent",
+    "@runt/schema": "jsr:@runt/schema"
+  }
+}
