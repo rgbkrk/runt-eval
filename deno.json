@@ -8,6 +8,9 @@
     "@std/assert": "jsr:@std/assert@1",
     "@runt/lib": "jsr:@runt/lib",
     "@runt/pyodide-runtime-agent": "jsr:@runt/pyodide-runtime-agent",
-    "@runt/schema": "jsr:@runt/schema"
+    "@runt/schema": "jsr:@runt/schema",
+    "@livestore/livestore": "npm:@livestore/livestore",
+    "@livestore/adapter-node": "npm:@livestore/adapter-node",
+    "@livestore/sync-cf": "npm:@livestore/sync-cf"
   }
 }

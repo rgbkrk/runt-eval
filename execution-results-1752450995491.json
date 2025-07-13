@@ -1,0 +1,46 @@
+{
+  "metadata": {
+    "executedAt": "2025-07-13T23:56:35.491Z",
+    "notebookId": "automation-md2c2o65-6n44q8",
+    "notebookUrl": "https://app.runt.run/?notebook=automation-md2c2o65-6n44q8",
+    "totalDuration": 22,
+    "success": false
+  },
+  "results": [
+    {
+      "success": false,
+      "cellId": "cell-1",
+      "queueId": "",
+      "duration": 6,
+      "error": "Column queueId not found"
+    },
+    {
+      "success": false,
+      "cellId": "cell-2",
+      "queueId": "",
+      "duration": 4,
+      "error": "Column queueId not found"
+    },
+    {
+      "success": false,
+      "cellId": "cell-3",
+      "queueId": "",
+      "duration": 6,
+      "error": "Column queueId not found"
+    },
+    {
+      "success": false,
+      "cellId": "cell-4",
+      "queueId": "",
+      "duration": 3,
+      "error": "Column queueId not found"
+    },
+    {
+      "success": false,
+      "cellId": "cell-5",
+      "queueId": "",
+      "duration": 3,
+      "error": "Column queueId not found"
+    }
+  ]
+}

@@ -1,14 +1,10 @@
-import {
-  createRuntimeConfig,
-  createStorePromise,
-  RuntimeAgent,
-} from "@runt/lib";
+import { createRuntimeConfig, RuntimeAgent } from "@runt/lib";
+import { createStorePromise } from "npm:@livestore/livestore";
+import { makeAdapter } from "npm:@livestore/adapter-node";
+import { makeCfSync } from "npm:@livestore/sync-cf";
 import type {
-  Cell,
   CellData,
-  CellOutput,
   CellType,
-  Document,
   ExecutionQueueData,
   ExecutionState,
   NotebookData,
@@ -17,6 +13,29 @@ import type {
   Store,
 } from "@runt/schema";
 import { events, schema, tables } from "@runt/schema";
+
+// Jupyter notebook format interfaces
+interface JupyterCell {
+  id: string;
+  cell_type: "code" | "markdown" | "raw";
+  source: string;
+  metadata?: Record<string, any>;
+  outputs?: any[];
+}
+
+interface JupyterDocument {
+  cells: JupyterCell[];
+  metadata: {
+    kernelspec?: {
+      name: string;
+      display_name: string;
+    };
+    language_info?: {
+      name: string;
+      version: string;
+    };
+  };
+}
 
 /**
  * Real LiveStore client for notebook automation like papermill
@@ -73,7 +92,7 @@ class NotebookAutomation {
    * Execute a document by coordinating with LiveStore and runtime agents
    */
   async executeDocument(
-    document: Document,
+    document: JupyterDocument,
     parameters?: Record<string, any>,
   ): Promise<{
     success: boolean;
@@ -88,16 +107,16 @@ class NotebookAutomation {
     console.log("🚀 Starting notebook automation via LiveStore");
     console.log(
       `📖 Cells to execute: ${
-        document.cells.filter((c) => c.cellType === "code").length
+        document.cells.filter((c) => c.cell_type === "code").length
       }`,
     );
 
     // Inject parameters as the first cell if provided
     const mergedParams = { ...this.config.parameters, ...parameters };
     if (Object.keys(mergedParams).length > 0) {
-      const parameterCell: Cell = {
+      const parameterCell: JupyterCell = {
         id: "parameters",
-        cellType: "code" as CellType,
+        cell_type: "code",
         source: this.generateParameterCode(mergedParams),
         metadata: { tags: ["parameters"] },
         outputs: [],
@@ -115,8 +134,8 @@ class NotebookAutomation {
 
     // Execute cells sequentially
     for (const cell of document.cells) {
-      if (cell.cellType !== "code") {
-        console.log(`⏭️  Skipping ${cell.cellType} cell: ${cell.id}`);
+      if (cell.cell_type !== "code") {
+        console.log(`⏭️  Skipping ${cell.cell_type} cell: ${cell.id}`);
         continue;
       }
 
@@ -198,12 +217,26 @@ class NotebookAutomation {
       console.log(`🔗 Sync URL: ${config.syncUrl}`);
       console.log(`📓 Notebook: ${config.notebookId}`);
 
-      // Create the store using the same config as the runtime agent
+      // Create adapter with sync backend if AUTH_TOKEN is available
+      const authToken = Deno.env.get("AUTH_TOKEN");
+      const syncUrl = config.syncUrl || "wss://app.runt.run";
+
+      const adapter = makeAdapter({
+        storage: { type: "in-memory" }, // Use in-memory for automation client
+        sync: authToken
+          ? {
+            backend: makeCfSync({ url: syncUrl }),
+            onSyncError: "log",
+          }
+          : undefined,
+      });
+
+      // Create the store
       this.store = await createStorePromise({
         schema,
+        adapter,
         storeId: this.notebookId,
-        // For now we'll create without an adapter - this connects to LiveStore
-        // In a full implementation, we'd use makeAdapter from @runt/adapter-node
+        syncPayload: authToken ? { authToken } : undefined,
       });
 
       console.log("✅ Connected to LiveStore");
@@ -233,9 +266,12 @@ class NotebookAutomation {
 
       // Add all cells to the notebook
       for (const cell of document.cells) {
+        // Convert Jupyter cell_type to runt cellType
+        const cellType = cell.cell_type as CellType;
+
         await this.store.commit(events.cellCreated({
           id: cell.id,
-          cellType: cell.cellType,
+          cellType,
           position: document.cells.indexOf(cell),
           createdBy: "automation",
         }));
@@ -260,7 +296,7 @@ class NotebookAutomation {
   /**
    * Execute a single cell by submitting execution request and waiting for completion
    */
-  private async executeCell(cell: Cell): Promise<ExecutionResult> {
+  private async executeCell(cell: JupyterCell): Promise<ExecutionResult> {
     const startTime = Date.now();
     const cellId = cell.id;
 
@@ -324,7 +360,7 @@ class NotebookAutomation {
           // Check if execution has completed or queue is empty (processed)
           const executionData = this.store.query(
             tables.executionQueue
-              .where({ queueId })
+              .where({ id: queueId })
               .first(),
           );
 
@@ -385,7 +421,7 @@ class NotebookAutomation {
   /**
    * Load document from file or URL
    */
-  static async loadDocument(source: string): Promise<Document> {
+  static async loadDocument(source: string): Promise<JupyterDocument> {
     let content: string;
 
     if (source.startsWith("http")) {
@@ -395,7 +431,7 @@ class NotebookAutomation {
       content = await Deno.readTextFile(source);
     }
 
-    return JSON.parse(content) as Document;
+    return JSON.parse(content) as JupyterDocument;
   }
 
   /**

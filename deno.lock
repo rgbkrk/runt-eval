@@ -2,10 +2,14 @@
   "version": "5",
   "specifiers": {
     "jsr:@runt/lib@*": "0.6.2",
+    "jsr:@runt/schema@*": "0.6.2",
     "jsr:@runt/schema@~0.6.2": "0.6.2",
     "jsr:@std/cli@1": "1.0.20",
+    "npm:@livestore/adapter-node@*": "0.3.1_vite@6.3.4__picomatch@4.0.2_@opentelemetry+api@1.9.0",
     "npm:@livestore/adapter-node@~0.3.1": "0.3.1_vite@6.3.4__picomatch@4.0.2_@opentelemetry+api@1.9.0",
+    "npm:@livestore/livestore@*": "0.3.1_@opentelemetry+api@1.9.0",
     "npm:@livestore/livestore@~0.3.1": "0.3.1_@opentelemetry+api@1.9.0",
+    "npm:@livestore/sync-cf@*": "0.3.1_@opentelemetry+api@1.9.0",
     "npm:@livestore/sync-cf@~0.3.1": "0.3.1_@opentelemetry+api@1.9.0",
     "npm:@opentelemetry/api@^1.9.0": "1.9.0"
   },
@@ -13,18 +17,18 @@
     "@runt/lib@0.6.2": {
       "integrity": "cac4042a7e9262b46355ca28d05adaf0ed7382249a4db06cde6c1333d0e3f977",
       "dependencies": [
-        "jsr:@runt/schema",
+        "jsr:@runt/schema@~0.6.2",
         "jsr:@std/cli",
-        "npm:@livestore/adapter-node",
-        "npm:@livestore/livestore",
-        "npm:@livestore/sync-cf",
+        "npm:@livestore/adapter-node@~0.3.1",
+        "npm:@livestore/livestore@~0.3.1",
+        "npm:@livestore/sync-cf@~0.3.1",
         "npm:@opentelemetry/api"
       ]
     },
     "@runt/schema@0.6.2": {
       "integrity": "dfe76c7aafb14b7575b0ce1adc141627de873b38f6b5c1dccc837a250d316153",
       "dependencies": [
-        "npm:@livestore/livestore"
+        "npm:@livestore/livestore@~0.3.1"
       ]
     },
     "@std/cli@1.0.20": {
@@ -954,7 +958,10 @@
       "jsr:@runt/lib@*",
       "jsr:@runt/pyodide-runtime-agent@*",
       "jsr:@runt/schema@*",
-      "jsr:@std/assert@1"
+      "jsr:@std/assert@1",
+      "npm:@livestore/adapter-node@*",
+      "npm:@livestore/livestore@*",
+      "npm:@livestore/sync-cf@*"
     ]
   }
 }
