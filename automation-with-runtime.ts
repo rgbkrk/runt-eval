@@ -42,7 +42,7 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     console.log("🐍 Starting pyodide runtime agent...");
     runtimeAgent = new PyodideRuntimeAgent();
 
-    // Start runtime agent in background (don't await)
+    // Start runtime agent in background (don't await keepAlive)
     const runtimePromise = (async () => {
       try {
         await runtimeAgent!.start();
@@ -106,10 +106,6 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     }
 
     console.log(`\n🌐 View live notebook: ${summary.notebookUrl}`);
-
-    // Keep runtime alive for a bit to allow viewing results
-    console.log("\n⏰ Keeping runtime alive for 30 seconds for inspection...");
-    await new Promise((resolve) => setTimeout(resolve, 30000));
   } catch (error) {
     console.error(
       "❌ Automation failed:",
@@ -126,8 +122,10 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
 
     if (runtimeAgent) {
       try {
-        // Runtime agent cleanup - just let it terminate naturally
-        console.log("✅ Runtime agent cleanup complete");
+        console.log("🛑 Stopping runtime agent...");
+        // Stop the runtime agent cleanly
+        await runtimeAgent.shutdown();
+        console.log("✅ Runtime agent stopped");
       } catch (error) {
         console.warn(
           "⚠️  Runtime agent cleanup warning:",
