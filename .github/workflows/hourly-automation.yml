@@ -35,5 +35,5 @@ jobs:
           cat .env
           echo ""
           deno cache --reload notebook-automation.ts automation-with-runtime.ts
-          deno task automate:runtime:example
+          deno task automate:ci
           echo "✅ Automation completed at $(date)"
