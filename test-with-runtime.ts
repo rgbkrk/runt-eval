@@ -69,31 +69,28 @@ async function runWithRuntime() {
     const document = await NotebookAutomation.loadDocument("example.json");
     const results = await automation.executeDocument(document);
 
-    // Save results
-    const outputPath = `test-results-${notebookId}.json`;
-    await automation.saveResults(outputPath);
+    // Get execution summary
+    const summary = automation.getExecutionSummary();
 
     console.log("\n📊 Test Results:");
-    console.log(`   Total duration: ${results.totalDuration}ms`);
-    console.log(
-      `   Successful cells: ${results.results.filter((r) => r.success).length}`,
-    );
-    console.log(`   Failed cells: ${results.failedCells.length}`);
-    console.log(`   Results saved: ${outputPath}`);
+    console.log(`   Total duration: ${summary.totalDuration}ms`);
+    console.log(`   Successful cells: ${summary.successfulCells}`);
+    console.log(`   Failed cells: ${summary.failedCells.length}`);
 
-    if (results.success) {
+    if (summary.success) {
       console.log("\n🎉 Test completed successfully!");
     } else {
       console.log("\n⚠️  Test completed with errors");
     }
 
-    console.log(
-      `\n🌐 View live notebook: https://app.runt.run/?notebook=${notebookId}`,
-    );
+    console.log(`\n🌐 View live notebook: ${summary.notebookUrl}`);
 
     await automation.cleanup();
   } catch (error) {
-    console.error("❌ Test failed:", error.message);
+    console.error(
+      "❌ Test failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     Deno.exit(1);
   } finally {
     // Clean up runtime process

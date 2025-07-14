@@ -51,6 +51,7 @@
         "jsr:@runt/ai",
         "jsr:@runt/lib@~0.6.2",
         "jsr:@runt/schema@~0.6.2",
+        "npm:@livestore/livestore@~0.3.1",
         "npm:pyodide"
       ]
     },

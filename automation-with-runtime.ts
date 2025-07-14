@@ -49,7 +49,10 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
         console.log("✅ Runtime agent started");
         await runtimeAgent!.keepAlive();
       } catch (error) {
-        console.error("❌ Runtime agent error:", error.message);
+        console.error(
+          "❌ Runtime agent error:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
     })();
 
@@ -75,7 +78,10 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
         parameters = JSON.parse(paramContent);
         console.log("📋 Loaded parameters:", Object.keys(parameters));
       } catch (error) {
-        console.warn("⚠️  Failed to load parameters:", error.message);
+        console.warn(
+          "⚠️  Failed to load parameters:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
 
@@ -105,7 +111,10 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     console.log("\n⏰ Keeping runtime alive for 30 seconds for inspection...");
     await new Promise((resolve) => setTimeout(resolve, 30000));
   } catch (error) {
-    console.error("❌ Automation failed:", error.message);
+    console.error(
+      "❌ Automation failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     throw error;
   } finally {
     // Cleanup
@@ -120,7 +129,10 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
         // Runtime agent cleanup - just let it terminate naturally
         console.log("✅ Runtime agent cleanup complete");
       } catch (error) {
-        console.warn("⚠️  Runtime agent cleanup warning:", error.message);
+        console.warn(
+          "⚠️  Runtime agent cleanup warning:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
 
@@ -180,7 +192,10 @@ async function main() {
       stopOnError: false,
     });
   } catch (error) {
-    console.error("❌ Process failed:", error.message);
+    console.error(
+      "❌ Process failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     Deno.exit(1);
   }
 }

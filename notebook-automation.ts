@@ -226,7 +226,7 @@ class NotebookAutomation {
         sync: authToken
           ? {
             backend: makeCfSync({ url: syncUrl }),
-            onSyncError: "log",
+            onSyncError: "shutdown",
           }
           : undefined,
       });
@@ -241,7 +241,10 @@ class NotebookAutomation {
 
       console.log("✅ Connected to LiveStore");
     } catch (error) {
-      console.error("❌ Failed to connect to LiveStore:", error.message);
+      console.error(
+        "❌ Failed to connect to LiveStore:",
+        error instanceof Error ? error.message : String(error),
+      );
       throw error;
     }
   }
@@ -249,7 +252,7 @@ class NotebookAutomation {
   /**
    * Initialize the notebook in LiveStore
    */
-  private async initializeNotebook(document: Document): Promise<void> {
+  private async initializeNotebook(document: JupyterDocument): Promise<void> {
     try {
       console.log("📝 Initializing notebook in LiveStore...");
 
@@ -288,7 +291,10 @@ class NotebookAutomation {
         `✅ Initialized notebook with ${document.cells.length} cells`,
       );
     } catch (error) {
-      console.error("❌ Failed to initialize notebook:", error.message);
+      console.error(
+        "❌ Failed to initialize notebook:",
+        error instanceof Error ? error.message : String(error),
+      );
       throw error;
     }
   }
@@ -328,7 +334,11 @@ class NotebookAutomation {
         duration: Date.now() - startTime,
       };
     } catch (error) {
-      console.log(`   ❌ Execution failed for ${cellId}: ${error.message}`);
+      console.log(
+        `   ❌ Execution failed for ${cellId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       return {
         success: false,
         cellId,
@@ -371,7 +381,7 @@ class NotebookAutomation {
           }
 
           // Check for failed execution
-          if (executionData.status === "error") {
+          if (executionData.status === "failed") {
             reject(new Error(`Execution failed for ${cellId}`));
             return;
           }
@@ -518,7 +528,10 @@ async function main() {
       parameters = JSON.parse(paramContent);
       console.log("📋 Loaded parameters:", Object.keys(parameters));
     } catch (error) {
-      console.error("❌ Failed to load parameters:", error.message);
+      console.error(
+        "❌ Failed to load parameters:",
+        error instanceof Error ? error.message : String(error),
+      );
       Deno.exit(1);
     }
   }
@@ -557,7 +570,10 @@ async function main() {
       Deno.exit(1);
     }
   } catch (error) {
-    console.error("❌ Automation failed:", error.message);
+    console.error(
+      "❌ Automation failed:",
+      error instanceof Error ? error.message : String(error),
+    );
     const summary = automation.getExecutionSummary();
     console.log(`🌐 Check notebook: ${summary.notebookUrl}`);
     Deno.exit(1);

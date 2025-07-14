@@ -1,62 +1,69 @@
-# runt-eval
+# Runt-Eval: Live Notebook Automation
 
-Notebook automation using the runt.run platform with @runt/lib and @runt/pyodide-runtime-agent.
+[![Status: Working ✅](https://img.shields.io/badge/Status-Working%20%E2%9C%85-success)](https://github.com/rgbkrk/runt-eval)
 
-This project demonstrates how to create automation clients that sequence operations on documents, similar to papermill for Jupyter notebooks, but using the runt.run infrastructure.
+Papermill-style notebook automation for the [runt.run](https://app.runt.run) platform. Creates live, collaborative notebooks that execute Python code in real-time.
 
-## Features
-
-- **Document Automation**: Execute documents by sequencing code cells in order
-- **Parameter Injection**: Inject parameters into documents for parameterized execution
-- **Error Handling**: Configurable retry logic and error handling strategies
-- **Execution Tracking**: Track execution results, timing, and outputs
-- **Multiple Runtimes**: Support for TypeScript and Python (via Pyodide) execution
-
-## Quick Start
-
-### Prerequisites
-
-- Deno 1.40+ installed
-- Access to runt.run platform
-
-### Installation
+## 🚀 Quick Start
 
 ```bash
+# Clone and enter directory
 git clone <this-repo>
 cd runt-eval
+
+# Run automation with embedded Python runtime
+deno task automate:runtime:example
 ```
 
-### Basic Usage
+**Output**: Live notebook at `https://app.runt.run/?notebook=automation-{id}`
 
-Execute a document:
+## ✨ What This Does
+
+- **Creates live notebooks** with auto-generated IDs
+- **Executes Python cells** using Pyodide runtime  
+- **Provides shareable URLs** for real-time collaboration
+- **Injects parameters** for reproducible experiments
+- **Runs entirely in-process** - no external services needed
+
+Perfect for automated data science workflows that humans can inspect and collaborate on.
+
+## 🎯 Use Cases
+
+- **Automated reporting**: Run scheduled data analysis notebooks
+- **Parameter sweeps**: Execute experiments with different configurations  
+- **CI/CD data validation**: Automated notebook-based testing
+- **Collaborative automation**: Share live results with team members
+
+## 📋 Prerequisites
+
+- [Deno 1.40+](https://deno.land/manual/getting_started/installation)
+- AUTH_TOKEN in `.env` file (for LiveStore sync)
+
+## 🛠️ Usage
+
+### Available Commands
+
 ```bash
-deno task automate example.json
+# Combined automation + runtime (recommended)
+deno task automate:runtime:example              # Run example notebook
+deno task automate:runtime:with-params          # Run with parameters
+
+# Automation only (requires separate runtime)  
+deno task automate example.json                 # Basic execution
+deno task automate:with-params                  # With parameter injection
 ```
 
-Execute with parameters:
-```bash
-deno task automate:with-params
-```
+### Custom Notebooks
 
-Custom execution:
-```bash
-deno run --allow-read --allow-write --allow-net notebook-automation.ts my-document.json my-params.json
-```
-
-## Document Format
-
-Documents use the runt schema format with cells containing executable code:
+Create a Jupyter-format JSON file:
 
 ```json
 {
-  "metadata": {
-    "kernelspec": { "name": "python3", "display_name": "Python 3" }
-  },
   "cells": [
     {
-      "id": "cell-1",
+      "id": "cell-1", 
       "cell_type": "code",
-      "source": "print('Hello, World!')",
+      "source": "import pandas as pd\nprint('Hello from automation!')",
       "metadata": {},
       "outputs": []
     }
@@ -64,185 +71,154 @@ Documents use the runt schema format with cells containing executable code:
 }
 ```
 
-## Parameter Injection
+Then run: `deno task automate:runtime your-notebook.json`
 
-Parameters are automatically injected as a new cell at the beginning of the document:
+### Parameter Injection
 
-**parameters.json**:
+Create `parameters.json`:
+
 ```json
 {
   "experiment_name": "test_run",
   "data_size": 1000,
-  "debug_mode": true
+  "model_type": "random_forest"
 }
 ```
 
-This generates:
+Parameters are automatically injected as the first cell:
+
 ```python
-# Parameters injected by automation
+# Parameters injected by automation  
 experiment_name = "test_run"
 data_size = 1000
-debug_mode = True
+model_type = "random_forest"
 ```
 
-## Configuration
+## 🏗️ Architecture
 
-### AutomationConfig Options
+### Real LiveStore Client
 
-```typescript
-interface AutomationConfig {
-  runtimeEndpoint?: string;  // Runtime agent endpoint
-  timeout?: number;          // Execution timeout (default: 30000ms)
-  retries?: number;          // Retry attempts (default: 2)
-  stopOnError?: boolean;     // Stop on first error (default: true)
-  parameters?: Record<string, any>; // Global parameters
-}
-```
+This is a genuine LiveStore client that uses the actual runt.run infrastructure:
 
-### Example Configuration
+- **Events**: `notebookInitialized`, `cellCreated`, `executionRequested`
+- **Tables**: `executionQueue`, `outputs`, `cells`
+- **Sync**: Real-time collaboration via WebSocket
 
-```typescript
-const automation = new NotebookAutomation({
-  timeout: 60000,        // 60 second timeout
-  retries: 3,           // 3 retry attempts
-  stopOnError: false,   // Continue on errors
-});
-```
+### Same-Process Coordination
 
-## Runtime Agents
-
-### TypeScript Runtime
-
-See `anode-example.ts` for a comprehensive TypeScript runtime agent that supports:
-- Console output capture
-- Mathematical expressions
-- Async operations
-- Execution statistics
-- Custom commands
-
-### Python Runtime (Pyodide)
-
-See `python-runtime.ts` for a Python execution environment using Pyodide:
-- Full Python 3.11 compatibility
-- Scientific computing libraries (NumPy, Pandas, Matplotlib)
-- Package installation
-- Variable state tracking
-
-## API Reference
-
-### NotebookAutomation Class
-
-#### Methods
-
-- `executeDocument(document, parameters?)`: Execute all code cells in sequence
-- `saveResults(outputPath, format?)`: Save execution results to file
-- `static loadDocument(source)`: Load document from file or URL
-- `static connectToRuntime(endpoint?)`: Connect to runtime agent
-
-#### Properties
-
-- `executionResults`: Array of execution summaries
-- `config`: Automation configuration
-
-## Examples
-
-### Basic Automation
-
-```typescript
-import { NotebookAutomation } from "./notebook-automation.ts";
-
-const automation = new NotebookAutomation();
-const document = await NotebookAutomation.loadDocument("my-notebook.json");
-const results = await automation.executeDocument(document);
-
-if (results.success) {
-  console.log("✅ All cells executed successfully");
-} else {
-  console.log(`❌ ${results.failedCells.length} cells failed`);
-}
-```
-
-### With Parameters
-
-```typescript
-const parameters = {
-  dataset_path: "/data/experiment.csv",
-  output_dir: "/results",
-  model_type: "random_forest"
-};
-
-const results = await automation.executeDocument(document, parameters);
-```
-
-### Error Handling
-
-```typescript
-const automation = new NotebookAutomation({
-  stopOnError: false,  // Continue on errors
-  retries: 3,         // Retry failed cells
-});
-
-const results = await automation.executeDocument(document);
-
-// Check individual cell results
-for (const result of results.results) {
-  if (!result.success) {
-    console.log(`Cell ${result.cellId} failed: ${result.error}`);
-  }
-}
-```
-
-## Development
-
-### Available Tasks
-
-- `deno task dev`: Watch mode for development
-- `deno task automate`: Run automation on example document
-- `deno task automate:example`: Run with example document
-- `deno task automate:with-params`: Run with parameters
-
-### Testing
-
-```bash
-deno test
-```
-
-### Type Checking
-
-```bash
-deno check *.ts
-```
-
-## Architecture
-
-The automation system consists of:
-
-1. **Automation Client** (`notebook-automation.ts`): Orchestrates document execution
-2. **Runtime Agents** (`anode-example.ts`, `python-runtime.ts`): Execute code cells
-3. **Schema Types** (`@runt/schema`): Standard document and cell formats
-4. **Runtime Library** (`@runt/lib`): Core runtime functionality
+The `automation-with-runtime.ts` script runs both components together:
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│ Automation      │───▶│ Runtime Agent    │───▶│ Code Execution  │
-│ Client          │    │ (TS/Python)      │    │ Environment     │
+│ Automation      │───▶│ LiveStore Events │◀───│ Pyodide Runtime│
+│ Client          │    │ & Tables         │    │ Agent          │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                       │                       │
          ▼                       ▼                       ▼
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│ Document        │    │ Execution        │    │ Results &       │
-│ Loading         │    │ Sequencing       │    │ Outputs         │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+    Create cells          Event coordination        Execute Python
+    Queue execution       Real-time sync           Store outputs
 ```
 
-## Contributing
+## 🔧 Configuration
+
+### Environment Variables
+
+Required in `.env` file:
+
+```bash
+AUTH_TOKEN=your-auth-token              # Required for LiveStore sync
+LIVESTORE_SYNC_URL=wss://app.runt.run   # Optional, defaults correctly  
+NOTEBOOK_ID=custom-id                   # Optional, auto-generated
+```
+
+### Automation Options
+
+```typescript
+const automation = new NotebookAutomation({
+  notebookId: "my-experiment",     // Custom ID (optional)
+  executionTimeout: 60000,         // 60 second timeout  
+  stopOnError: false,              // Continue on cell failures
+  parameters: { debug: true }      // Global parameters
+});
+```
+
+## 📁 Project Structure
+
+```
+runt-eval/
+├── automation-with-runtime.ts    # ⭐ Combined automation + runtime
+├── notebook-automation.ts        # Standalone automation client
+├── example.json                  # Sample notebook for testing
+├── parameters.json               # Parameter injection example
+└── .env                         # AUTH_TOKEN configuration
+```
+
+## 🔍 Debugging
+
+### Common Issues
+
+**Cells stuck "Queued for execution"**
+- Runtime agent not connected to same notebook ID
+- Check AUTH_TOKEN in `.env` file
+
+**Import/module errors**  
+- Ensure all `@runt/*` dependencies in `deno.json`
+- Use `--unstable-broadcast-channel` flag
+
+**LiveStore connection issues**
+- Verify `AUTH_TOKEN` is valid
+- Check internet connection for sync
+
+### Verification
+
+Working system should show:
+- ✅ Notebook creation with unique ID
+- ✅ Cell execution completing (not just queued)
+- ✅ Live URL accessible in browser
+- ✅ Python outputs visible online
+
+## 🚀 Integration
+
+### Slack Notifications (Future)
+
+```typescript
+// After automation completes
+const summary = automation.getExecutionSummary();
+await slackWebhook({
+  text: summary.success 
+    ? `✅ Notebook completed: ${summary.notebookUrl}`
+    : `❌ Notebook failed: ${summary.notebookUrl}`
+});
+```
+
+### CI/CD Integration
+
+```bash
+# In GitHub Actions
+- name: Run Data Validation
+  run: |
+    echo "AUTH_TOKEN=${{ secrets.RUNT_AUTH_TOKEN }}" > .env
+    deno task automate:runtime validation-notebook.json
+```
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+2. Create feature branch: `git checkout -b feature-name`  
+3. Test changes: `deno task automate:runtime:example`
+4. Ensure no TypeScript errors: `deno check *.ts`
+5. Submit pull request
 
-## License
+## 📚 Related
+
+- [runt.run Platform](https://app.runt.run) - Live collaborative notebooks
+- [LiveStore Docs](https://docs.livestore.dev) - Event-sourcing framework
+- [Pyodide](https://pyodide.org) - Python in WebAssembly
+
+## 📜 License
 
 See LICENSE file for details.
+
+---
+
+**Status**: ✅ Working system ready for production use!
