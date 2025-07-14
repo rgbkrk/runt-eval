@@ -56,14 +56,19 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
       }
     })();
 
-    // Give runtime a moment to initialize
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Give runtime more time to initialize packages in CI
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+
+    // Verify packages are ready before starting automation
+    console.log("🔍 Verifying package availability...");
+    await verifyPackagesReady(notebookId);
+    console.log("✅ Essential packages verified");
 
     // Start automation
     console.log("🤖 Starting automation client...");
     automation = new NotebookAutomation({
       notebookId,
-      stopOnError: config.stopOnError ?? false,
+      stopOnError: config.stopOnError ?? true,
       executionTimeout: config.executionTimeout ?? 60000,
     });
 
@@ -144,6 +149,49 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
 }
 
 /**
+ * Verify essential packages are available before starting automation
+ */
+async function verifyPackagesReady(notebookId: string): Promise<void> {
+  const testAutomation = new NotebookAutomation({
+    notebookId: `${notebookId}-test`,
+    stopOnError: true,
+    executionTimeout: 30000,
+  });
+
+  try {
+    await testAutomation.executeDocument({
+      metadata: { title: "Package Test" },
+      cells: [{
+        id: "package-test",
+        source: `
+import sys
+print(f"Python version: {sys.version}")
+
+# Test essential packages
+try:
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    print("✅ Essential packages (numpy, pandas, matplotlib) are available")
+except ImportError as e:
+    print(f"❌ Package not available: {e}")
+    raise
+`,
+      }],
+    }, {});
+
+    const summary = testAutomation.getExecutionSummary();
+    if (!summary.success) {
+      throw new Error(
+        `Package verification failed: ${summary.failedCells.join(", ")}`,
+      );
+    }
+  } finally {
+    await testAutomation.cleanup();
+  }
+}
+
+/**
  * CLI interface
  */
 async function main() {
@@ -187,7 +235,7 @@ async function main() {
       parametersPath,
       notebookId: Deno.env.get("NOTEBOOK_ID"),
       executionTimeout: 60000,
-      stopOnError: false,
+      stopOnError: true,
     });
   } catch (error) {
     console.error(
