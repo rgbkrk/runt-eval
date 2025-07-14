@@ -2,6 +2,7 @@ import { createRuntimeConfig, RuntimeAgent } from "@runt/lib";
 import { createStorePromise } from "npm:@livestore/livestore";
 import { makeAdapter } from "npm:@livestore/adapter-node";
 import { makeCfSync } from "npm:@livestore/sync-cf";
+import { parse as parseYaml } from "@std/yaml";
 import type {
   CellData,
   CellType,
@@ -35,6 +36,21 @@ interface JupyterDocument {
       version: string;
     };
   };
+}
+
+// YAML notebook format interfaces
+interface YamlNotebook {
+  metadata?: {
+    title?: string;
+    description?: string;
+    runtime?: string;
+    tags?: string[];
+  };
+  parameters?: Record<string, any>;
+  cells: Array<{
+    id: string;
+    source: string;
+  }>;
 }
 
 /**
@@ -112,7 +128,14 @@ class NotebookAutomation {
     );
 
     // Inject parameters as the first cell if provided
-    const mergedParams = { ...this.config.parameters, ...parameters };
+    // First check if document has embedded parameters (YAML format)
+    const yamlParams = (document as any).parameters || {};
+    const mergedParams = {
+      ...yamlParams,
+      ...this.config.parameters,
+      ...parameters,
+    };
+
     if (Object.keys(mergedParams).length > 0) {
       const parameterCell: JupyterCell = {
         id: "parameters",
@@ -124,6 +147,7 @@ class NotebookAutomation {
 
       document.cells.unshift(parameterCell);
       console.log("📋 Injected parameter cell");
+      console.log(`   Parameters: ${Object.keys(mergedParams).join(", ")}`);
     }
 
     // Connect to LiveStore as a client
@@ -429,7 +453,7 @@ class NotebookAutomation {
   }
 
   /**
-   * Load document from file or URL
+   * Load document from file or URL (supports both JSON and YAML formats)
    */
   static async loadDocument(source: string): Promise<JupyterDocument> {
     let content: string;
@@ -441,7 +465,45 @@ class NotebookAutomation {
       content = await Deno.readTextFile(source);
     }
 
-    return JSON.parse(content) as JupyterDocument;
+    // Auto-detect format based on file extension or content
+    if (source.endsWith(".yml") || source.endsWith(".yaml")) {
+      const yamlNotebook = parseYaml(content) as YamlNotebook;
+      const jupyterDoc = this.convertYamlToJupyter(yamlNotebook);
+      // Store parameters for later use
+      (jupyterDoc as any).parameters = yamlNotebook.parameters;
+      return jupyterDoc;
+    } else {
+      return JSON.parse(content) as JupyterDocument;
+    }
+  }
+
+  /**
+   * Convert YAML notebook format to Jupyter format
+   */
+  private static convertYamlToJupyter(
+    yamlNotebook: YamlNotebook,
+  ): JupyterDocument {
+    const cells: JupyterCell[] = yamlNotebook.cells.map((cell) => ({
+      id: cell.id,
+      cell_type: "code" as const,
+      source: cell.source.trim(),
+      metadata: {},
+      outputs: [],
+    }));
+
+    return {
+      metadata: {
+        kernelspec: {
+          name: yamlNotebook.metadata?.runtime || "python3",
+          display_name: yamlNotebook.metadata?.title || "Python 3",
+        },
+        language_info: {
+          name: "python",
+          version: "3.11.0",
+        },
+      },
+      cells,
+    };
   }
 
   /**

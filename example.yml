@@ -1,0 +1,91 @@
+# YAML Notebook Configuration for Runt-Eval
+# This is a simpler alternative to Jupyter JSON format
+
+metadata:
+  title: "Example Data Analysis"
+  description: "Sample notebook demonstrating Python data analysis"
+  runtime: "python3"
+  tags: ["automation", "example", "data-science"]
+
+# Parameters that can be injected into cells
+parameters:
+  data_size: 100
+  plot_style: "seaborn"
+  random_seed: 42
+
+# Notebook cells - executed in sequence
+cells:
+  - id: "setup"
+    source: |
+      import numpy as np
+      import pandas as pd
+      import matplotlib.pyplot as plt
+      print('Libraries imported successfully')
+      print(f'Random seed: {random_seed}')
+
+  - id: "data-generation"
+    source: |
+      # Create sample data
+      np.random.seed(random_seed)
+      data = {
+          'x': np.random.randn(data_size),
+          'y': np.random.randn(data_size) * 2 + 1,
+          'category': np.random.choice(['A', 'B', 'C'], data_size)
+      }
+      df = pd.DataFrame(data)
+      print(f'Created DataFrame with {len(df)} rows')
+      print(f'Columns: {list(df.columns)}')
+
+  - id: "analysis"
+    source: |
+      # Basic statistics
+      print("Dataset Summary:")
+      print(df.describe())
+      print(f"\nCategory counts:")
+      print(df['category'].value_counts())
+
+      # Correlation analysis
+      correlation = df[['x', 'y']].corr()
+      print(f"\nCorrelation between x and y: {correlation.iloc[0,1]:.3f}")
+
+  - id: "visualization"
+    source: |
+      # Create visualization
+      plt.style.use(plot_style if plot_style in plt.style.available else 'default')
+
+      fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+      # Scatter plot
+      for cat in df['category'].unique():
+          mask = df['category'] == cat
+          ax1.scatter(df[mask]['x'], df[mask]['y'], label=f'Category {cat}', alpha=0.7)
+
+      ax1.set_xlabel('X values')
+      ax1.set_ylabel('Y values')
+      ax1.set_title('Scatter Plot by Category')
+      ax1.legend()
+      ax1.grid(True, alpha=0.3)
+
+      # Histogram
+      ax2.hist([df[df['category'] == cat]['x'] for cat in df['category'].unique()],
+               label=[f'Category {cat}' for cat in df['category'].unique()],
+               alpha=0.7, bins=20)
+      ax2.set_xlabel('X values')
+      ax2.set_ylabel('Frequency')
+      ax2.set_title('Distribution of X by Category')
+      ax2.legend()
+      ax2.grid(True, alpha=0.3)
+
+      plt.tight_layout()
+      plt.show()
+
+  - id: "summary"
+    source: |
+      # Final summary
+      print("📊 Analysis Summary:")
+      print(f"   • Dataset size: {len(df)} rows")
+      print(f"   • Categories: {', '.join(sorted(df['category'].unique()))}")
+      print(f"   • X range: [{df['x'].min():.2f}, {df['x'].max():.2f}]")
+      print(f"   • Y range: [{df['y'].min():.2f}, {df['y'].max():.2f}]")
+      print(f"   • X-Y correlation: {df[['x', 'y']].corr().iloc[0,1]:.3f}")
+      print("✅ Analysis complete!")

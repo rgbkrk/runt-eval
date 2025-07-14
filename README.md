@@ -197,9 +197,36 @@ await slackWebhook({
 # In GitHub Actions
 - name: Run Data Validation
   run: |
-    echo "AUTH_TOKEN=${{ secrets.RUNT_AUTH_TOKEN }}" > .env
+    echo "AUTH_TOKEN=${{ secrets.AUTH_TOKEN }}" > .env
     deno task automate:runtime validation-notebook.json
 ```
+
+### GitHub Actions Hourly Automation
+
+This repository includes a GitHub Actions workflow that runs automation every hour.
+
+**Setup:**
+
+1. **Add Repository Secret**:
+   - Go to your GitHub repository → Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `AUTH_TOKEN`
+   - Value: Your runt.run authentication token
+
+2. **Enable Workflow**:
+   - The workflow at `.github/workflows/hourly-automation.yml` runs automatically
+   - Manual trigger: Go to Actions tab → "Hourly Notebook Automation" → "Run workflow"
+
+3. **Monitor Results**:
+   - Check Actions tab for execution logs
+   - Each run creates a new live notebook at app.runt.run
+   - Perfect for scheduled data reports, monitoring dashboards, etc.
+
+The workflow will:
+- ✅ Run every hour at minute 0 (e.g., 1:00, 2:00, 3:00...)
+- ✅ Execute the example notebook with real Python code
+- ✅ Output the live notebook URL for inspection
+- ✅ Clean up gracefully after completion
 
 ## 🤝 Contributing
 

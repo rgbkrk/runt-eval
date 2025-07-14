@@ -3,12 +3,15 @@
     "automate": "deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts",
     "automate:example": "deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts example.json",
     "automate:with-params": "deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts example.json parameters.json",
+    "automate:yaml": "deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts example.yml",
     "automate:runtime": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts",
-    "automate:runtime:example": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts example.json",
-    "automate:runtime:with-params": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts example.json parameters.json"
+    "automate:runtime:example": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts example.yml",
+    "automate:runtime:with-params": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts example.json parameters.json",
+    "automate:runtime:yaml": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts example.yml"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
+    "@std/yaml": "jsr:@std/yaml@1",
     "@runt/lib": "jsr:@runt/lib",
     "@runt/pyodide-runtime-agent": "jsr:@runt/pyodide-runtime-agent",
     "@runt/schema": "jsr:@runt/schema",

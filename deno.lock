@@ -9,6 +9,7 @@
     "jsr:@runt/schema@*": "0.6.2",
     "jsr:@runt/schema@~0.6.2": "0.6.2",
     "jsr:@std/cli@1": "1.0.20",
+    "jsr:@std/yaml@1": "1.0.8",
     "npm:@livestore/adapter-node@*": "0.3.1_vite@6.3.4__picomatch@4.0.2_@opentelemetry+api@1.9.0",
     "npm:@livestore/adapter-node@~0.3.1": "0.3.1_vite@6.3.4__picomatch@4.0.2_@opentelemetry+api@1.9.0",
     "npm:@livestore/livestore@*": "0.3.1_@opentelemetry+api@1.9.0",
@@ -63,6 +64,9 @@
     },
     "@std/cli@1.0.20": {
       "integrity": "a8c384a2c98cec6ec6a2055c273a916e2772485eb784af0db004c5ab8ba52333"
+    },
+    "@std/yaml@1.0.8": {
+      "integrity": "90b8aab62995e929fa0ea5f4151c287275b63e321ac375c35ff7406ca60c169d"
     }
   },
   "npm": {
@@ -1013,6 +1017,7 @@
       "jsr:@runt/pyodide-runtime-agent@*",
       "jsr:@runt/schema@*",
       "jsr:@std/assert@1",
+      "jsr:@std/yaml@1",
       "npm:@livestore/adapter-node@*",
       "npm:@livestore/livestore@*",
       "npm:@livestore/sync-cf@*"
