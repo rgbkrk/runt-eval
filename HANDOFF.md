@@ -1,38 +1,30 @@
-# Runt-Eval: Notebook Automation via LiveStore
+# Runt-Eval: Working Notebook Automation System ✅
 
-## Project Goal
+## 🎉 Current Status: WORKING!
 
-Create a **papermill-like automation system** for the runt.run platform that can execute notebooks programmatically while leveraging the real-time collaborative features of LiveStore.
+The notebook automation system is **fully functional** and successfully creates live collaborative notebooks that can be viewed in real-time at `https://app.runt.run/?notebook={id}`.
 
-This project acts as a **LiveStore client** that orchestrates notebook execution by:
-1. Creating notebooks with code cells
-2. Submitting execution requests through the event system
-3. Coordinating with runtime agents (like pyodide) for actual code execution
-4. Providing live, shareable notebook URLs for human inspection
+## Quick Start
 
-## Key Design Principles
+```bash
+# Run automation with embedded runtime agent (recommended)
+deno task automate:runtime:example
 
-### 1. Real LiveStore Client
-- Uses actual `@runt/schema` events and tables
-- Connects to the same LiveStore infrastructure as runtime agents
-- No simulation - real event-driven coordination
+# Run automation only (cells will queue without execution)
+deno task automate example.json
+```
 
-### 2. Terminal-Based Automation
-- Command-line interface similar to papermill
-- Supports parameter injection for reproducible runs
-- Generates unique notebook IDs automatically
+## What This Does
 
-### 3. Queue-Based Execution
-- Submits execution requests via `executionRequested` events
-- Monitors `executionQueue` table for completion
-- Doesn't need to read outputs - those are handled by runtime agents
+Creates a **papermill-like automation system** for runt.run that:
 
-### 4. Live Collaboration
-- Every automation run creates a shareable notebook at `https://app.runt.run/?notebook={id}`
-- Humans can watch execution in real-time
-- Full execution history and outputs preserved in LiveStore
+1. **Generates unique notebook IDs** (`automation-{timestamp}-{random}`)
+2. **Creates live notebooks** with executable Python cells
+3. **Coordinates execution** between automation client and pyodide runtime agent
+4. **Provides shareable URLs** for real-time collaboration
+5. **Runs entirely in-process** - no external dependencies needed
 
-## Architecture
+## Architecture: Real LiveStore Client
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -49,69 +41,100 @@ This project acts as a **LiveStore client** that orchestrates notebook execution
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-## Current Implementation
+### Key Innovation: Same-Process Coordination
+
+The `automation-with-runtime.ts` script runs both:
+- **Automation client**: Creates cells, submits execution requests
+- **Pyodide runtime agent**: Picks up requests, executes Python code
+
+Both coordinate through LiveStore's event system in the same Deno process.
+
+## Files Overview
 
 ### Core Files
-- **`notebook-automation.ts`**: Main automation client
-- **`example.json`**: Sample notebook document for testing
-- **`parameters.json`**: Parameter injection example
-- **`.env.example`**: Environment configuration template
+- **`automation-with-runtime.ts`** ⭐ - Combined automation + runtime (recommended)
+- **`notebook-automation.ts`** - Standalone automation client  
+- **`example.json`** - Sample Jupyter notebook for testing
+- **`parameters.json`** - Parameter injection example
+- **`.env`** - Contains AUTH_TOKEN for LiveStore sync
 
-### Event Flow
-1. **Notebook Creation**: `notebookInitialized` → creates notebook metadata
-2. **Cell Setup**: `cellCreated` + `cellSourceChanged` → adds executable cells
-3. **Execution**: `executionRequested` → queues cell for runtime agent
-4. **Monitoring**: Poll `executionQueue` table until status = `completed`
-
-### Usage
+### Tasks Available
 ```bash
-# Basic automation with auto-generated notebook ID
-AUTH_TOKEN=your-token deno task automate example.json
+# Combined automation + runtime (best for testing)
+deno task automate:runtime:example
+deno task automate:runtime:with-params
 
-# With parameters
-AUTH_TOKEN=your-token deno task automate:with-params
-
-# Custom notebook ID
-NOTEBOOK_ID=my-experiment AUTH_TOKEN=your-token deno task automate example.json
+# Automation only (needs separate runtime agent)
+deno task automate example.json
+deno task automate:with-params
 ```
 
-## What Works
+## Technical Implementation
 
-✅ **LiveStore Integration**: Real schema events and table queries  
-✅ **Notebook ID Generation**: Unique IDs like `automation-{timestamp}-{random}`  
-✅ **Parameter Injection**: Automatic parameter cell creation  
-✅ **Queue Coordination**: Submits execution requests and monitors completion  
-✅ **Live URL Generation**: Provides shareable notebook links  
-✅ **Environment Configuration**: `.env` file support built into tasks  
+### Uses Real Runt Schema Events
+- `notebookInitialized` → Create notebook metadata
+- `cellCreated` + `cellSourceChanged` → Add executable cells  
+- `executionRequested` → Queue cell for execution
+- Monitor `executionQueue` table for completion
 
-## What's Next
+### LiveStore Integration
+- Connects via `@livestore/adapter-node` with CF sync backend
+- Uses real `@runt/schema` events and tables
+- No simulation - actual event-driven coordination
+- Supports parameter injection for reproducible runs
 
-### Immediate Tasks
-1. **Test with Real Runtime Agent**: Connect a pyodide agent to same notebook ID
-2. **Error Handling**: Improve failure scenarios and timeout handling
-3. **Output Validation**: Verify execution results through LiveStore queries
-
-### Future Enhancements
-1. **Concurrent Execution**: Execute multiple cells in parallel where possible
-2. **Execution Dependencies**: Support for cell execution ordering/dependencies
-3. **Result Export**: Export executed notebooks in standard formats
-4. **Batch Processing**: Process multiple notebooks in sequence
-5. **Integration Testing**: End-to-end tests with runtime agents
+### Output: Live Notebooks Only
+- **No local files generated** (cleaned up approach)
+- Results viewable at `https://app.runt.run/?notebook={id}`
+- Perfect for Slack integration - just send the URL
+- Real-time collaboration ready
 
 ## Environment Setup
 
-Required environment variables:
-- `AUTH_TOKEN`: Authentication for LiveStore sync (required)
-- `LIVESTORE_SYNC_URL`: Sync endpoint (optional, defaults to app.runt.run)
-- `NOTEBOOK_ID`: Target notebook (optional, auto-generated if not set)
+Required environment variables in `.env`:
+```bash
+AUTH_TOKEN=your-auth-token        # Required for LiveStore sync
+LIVESTORE_SYNC_URL=wss://app.runt.run  # Optional, defaults correctly
+NOTEBOOK_ID=custom-id             # Optional, auto-generated if not set
+```
 
-## Success Criteria
+## For Future AI Sessions
 
-The automation is successful when:
-1. **Notebooks execute completely** without manual intervention
-2. **Results are accessible** via the generated notebook URL
-3. **Multiple users can collaborate** on the same automation run
-4. **Parameter injection works** for reproducible experiments
-5. **Error handling is robust** for production use
+### Essential Context to Provide
+1. **Load the runt schema**: `runt/packages/schema/mod.ts` - Contains all event definitions and table schemas
+2. **Check LiveStore docs**: https://docs.livestore.dev/llms-full.txt - Full LiveStore documentation  
+3. **Review current codebase**: The automation is a real LiveStore client using actual schema events
+4. **Test command**: `deno task automate:runtime:example` should work immediately
 
-This creates a bridge between programmatic automation and human-readable notebooks, enabling both automated workflows and collaborative data science on the runt.run platform.
+### Key Technical Details
+- Uses `@runt/schema` events: `notebookInitialized`, `cellCreated`, `cellSourceChanged`, `executionRequested`
+- Queries `executionQueue` table to monitor completion
+- Converts Jupyter notebook format (`cell_type`) to runt schema format (`cellType`)
+- Runtime agent and automation coordinate through shared LiveStore event log
+- All execution happens via event queue - no direct communication needed
+
+## Success Metrics
+
+✅ **Notebooks create successfully** with unique IDs  
+✅ **Cells execute in sequence** with real Python code  
+✅ **Live URLs work** for human collaboration  
+✅ **Parameter injection** for reproducible experiments  
+✅ **Same-process execution** eliminates coordination complexity  
+✅ **No local file pollution** - results live online only  
+
+## Next Steps for Enhancement
+
+1. **Slack Integration**: Send notebook URLs on completion/failure
+2. **Batch Processing**: Execute multiple notebooks in sequence  
+3. **Error Recovery**: Better handling of runtime agent failures
+4. **Cell Dependencies**: Support for execution ordering constraints
+5. **Result Validation**: Automated checking of execution outputs
+
+## Debugging Tips
+
+- **Cells stuck "Queued"**: Runtime agent not connected to same notebook ID
+- **Auth errors**: Check AUTH_TOKEN in `.env` file
+- **Import errors**: Ensure proper `@runt/*` package imports in `deno.json`
+- **LiveStore connection**: Look for BroadcastChannel warnings (use `--unstable-broadcast-channel`)
+
+The system bridges programmatic automation with human-readable collaborative notebooks, enabling both automated workflows and real-time data science collaboration on the runt.run platform.
