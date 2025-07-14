@@ -208,16 +208,20 @@ class NotebookAutomation {
 
       // Create adapter with sync backend if AUTH_TOKEN is available
       const authToken = Deno.env.get("AUTH_TOKEN");
-      const syncUrl = config.syncUrl || "wss://app.runt.run";
+      const syncUrl = config.syncUrl || "wss://app.runt.run/livestore";
+
+      if (!authToken) {
+        throw new Error(
+          "AUTH_TOKEN is required for LiveStore sync in automation mode",
+        );
+      }
 
       const adapter = makeAdapter({
         storage: { type: "in-memory" }, // Use in-memory for automation client
-        sync: authToken
-          ? {
-            backend: makeCfSync({ url: syncUrl }),
-            onSyncError: "shutdown",
-          }
-          : undefined,
+        sync: {
+          backend: makeCfSync({ url: syncUrl }),
+          onSyncError: "shutdown",
+        },
       });
 
       // Create the store
@@ -225,7 +229,7 @@ class NotebookAutomation {
         schema,
         adapter,
         storeId: this.notebookId,
-        syncPayload: authToken ? { authToken } : undefined,
+        syncPayload: { authToken },
       });
 
       console.log("✅ Connected to LiveStore");

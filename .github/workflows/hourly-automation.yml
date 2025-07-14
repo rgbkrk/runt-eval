@@ -2,7 +2,7 @@ name: Hourly Notebook Automation
 
 on:
   schedule:
-    # Run every hour at minute 0
+    # Run every hour at minute 37
     - cron: "37 * * * *"
   workflow_dispatch:
     # Allow manual triggering for testing
@@ -23,11 +23,17 @@ jobs:
       - name: Create .env file with secrets
         run: |
           echo "AUTH_TOKEN=${{ secrets.AUTH_TOKEN }}" > .env
-          echo "LIVESTORE_SYNC_URL=wss://app.runt.run" >> .env
+          echo "LIVESTORE_SYNC_URL=${{ secrets.LIVESTORE_SYNC_URL || 'wss://app.runt.run/livestore' }}" >> .env
+          echo "📄 Created .env file:"
+          echo "🔑 AUTH_TOKEN: $([ -n "${{ secrets.AUTH_TOKEN }}" ] && echo "✅ Set" || echo "❌ Missing")"
+          echo "🔗 LIVESTORE_SYNC_URL: ${{ secrets.LIVESTORE_SYNC_URL || 'wss://app.runt.run/livestore' }}"
 
       - name: Update lockfile and run automation
         run: |
           echo "🚀 Starting hourly automation at $(date)"
+          echo "📋 Checking .env file contents:"
+          cat .env
+          echo ""
           deno cache --reload notebook-automation.ts automation-with-runtime.ts
           deno task automate:runtime:example
           echo "✅ Automation completed at $(date)"
