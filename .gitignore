@@ -140,3 +140,8 @@ vite.config.ts.timestamp-*
 
 .env.*
 .env
+
+# Generated automation result files
+execution-results-*.json
+executed-document-*.json
+automation-results-*.json

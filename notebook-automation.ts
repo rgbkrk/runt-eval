@@ -435,24 +435,27 @@ class NotebookAutomation {
   }
 
   /**
-   * Save execution results
+   * Get execution summary for logging/reporting
    */
-  async saveResults(outputPath: string): Promise<void> {
-    const results = {
-      metadata: {
-        executedAt: new Date().toISOString(),
-        notebookId: this.notebookId,
-        notebookUrl: `https://app.runt.run/?notebook=${this.notebookId}`,
-        totalDuration: this.executionResults.reduce(
-          (sum, r) => sum + r.duration,
-          0,
-        ),
-        success: this.executionResults.every((r) => r.success),
-      },
-      results: this.executionResults,
+  getExecutionSummary(): {
+    success: boolean;
+    totalDuration: number;
+    successfulCells: number;
+    failedCells: string[];
+    notebookUrl: string;
+  } {
+    return {
+      success: this.executionResults.every((r) => r.success),
+      totalDuration: this.executionResults.reduce(
+        (sum, r) => sum + r.duration,
+        0,
+      ),
+      successfulCells: this.executionResults.filter((r) => r.success).length,
+      failedCells: this.executionResults.filter((r) => !r.success).map((r) =>
+        r.cellId
+      ),
+      notebookUrl: `https://app.runt.run/?notebook=${this.notebookId}`,
     };
-
-    await Deno.writeTextFile(outputPath, JSON.stringify(results, null, 2));
   }
 
   /**
@@ -540,39 +543,23 @@ async function main() {
 
     // Execute document
     const results = await automation.executeDocument(document, parameters);
+    const summary = automation.getExecutionSummary();
 
-    // Save results
-    const outputPath = `execution-results-${Date.now()}.json`;
-    await automation.saveResults(outputPath);
-    console.log(`💾 Results saved to: ${outputPath}`);
-
-    // Save executed document with results
-    const executedDocPath = `executed-document-${Date.now()}.json`;
-    await Deno.writeTextFile(
-      executedDocPath,
-      JSON.stringify(document, null, 2),
-    );
-    console.log(`📄 Executed document saved to: ${executedDocPath}`);
-
-    // Exit with appropriate code
-    if (results.success) {
-      console.log("🎉 Document execution completed successfully!");
-      console.log(
-        `🌐 View results at: https://app.runt.run/?notebook=${automation.getNotebookId()}`,
-      );
+    // Report final results
+    if (summary.success) {
+      console.log("🎉 Notebook execution completed successfully!");
+      console.log(`🌐 View results: ${summary.notebookUrl}`);
       Deno.exit(0);
     } else {
-      console.error("💥 Document execution failed");
-      console.log(
-        `🌐 View partial results at: https://app.runt.run/?notebook=${automation.getNotebookId()}`,
-      );
+      console.error("💥 Notebook execution failed");
+      console.error(`   Failed cells: ${summary.failedCells.join(", ")}`);
+      console.log(`🌐 View partial results: ${summary.notebookUrl}`);
       Deno.exit(1);
     }
   } catch (error) {
     console.error("❌ Automation failed:", error.message);
-    console.log(
-      `🌐 Check notebook state at: https://app.runt.run/?notebook=${automation.getNotebookId()}`,
-    );
+    const summary = automation.getExecutionSummary();
+    console.log(`🌐 Check notebook: ${summary.notebookUrl}`);
     Deno.exit(1);
   } finally {
     await automation.cleanup();

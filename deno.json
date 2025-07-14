@@ -1,8 +1,11 @@
 {
   "tasks": {
-    "automate": "deno run --env-file --allow-all notebook-automation.ts",
-    "automate:example": "deno run --env-file --allow-all notebook-automation.ts example.json",
-    "automate:with-params": "deno run --env-file --allow-all notebook-automation.ts example.json parameters.json"
+    "automate": "deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts",
+    "automate:example": "deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts example.json",
+    "automate:with-params": "deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts example.json parameters.json",
+    "automate:runtime": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts",
+    "automate:runtime:example": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts example.json",
+    "automate:runtime:with-params": "deno run --env-file=.env --allow-all --unstable-broadcast-channel automation-with-runtime.ts example.json parameters.json"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
