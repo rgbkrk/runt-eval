@@ -20,19 +20,15 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Create .env file with secrets
-        run: |
-          echo "AUTH_TOKEN=${{ secrets.AUTH_TOKEN }}" > .env
-          echo "LIVESTORE_SYNC_URL=${{ secrets.LIVESTORE_SYNC_URL || 'wss://app.runt.run/livestore' }}" >> .env
-          echo "📄 Created .env file:"
-          echo "🔑 AUTH_TOKEN: $([ -n "${{ secrets.AUTH_TOKEN }}" ] && echo "✅ Set" || echo "❌ Missing")"
-          echo "🔗 LIVESTORE_SYNC_URL: ${{ secrets.LIVESTORE_SYNC_URL || 'wss://app.runt.run/livestore' }}"
-
       - name: Update lockfile and run automation
+        env:
+          AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
+          LIVESTORE_SYNC_URL: ${{ secrets.LIVESTORE_SYNC_URL || 'wss://app.runt.run/livestore' }}
         run: |
           echo "🚀 Starting hourly automation at $(date)"
-          echo "📋 Checking .env file contents:"
-          cat .env
+          echo "📋 Environment variables:"
+          echo "🔑 AUTH_TOKEN: $([ -n "$AUTH_TOKEN" ] && echo "✅ Set" || echo "❌ Missing")"
+          echo "🔗 LIVESTORE_SYNC_URL: $LIVESTORE_SYNC_URL"
           echo ""
           deno cache --reload notebook-automation.ts automation-with-runtime.ts
           deno task automate:ci
