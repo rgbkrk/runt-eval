@@ -2,7 +2,7 @@
 
 [![Status: Working ✅](https://img.shields.io/badge/Status-Working%20%E2%9C%85-success)](https://github.com/rgbkrk/runt-eval)
 
-Papermill-style notebook automation for the [runt.run](https://app.runt.run) platform. Creates live, collaborative notebooks that execute Python code in real-time.
+Papermill-style notebook automation for the [runt.run](https://app.runt.run) platform. Creates live, collaborative notebooks from clean YAML configurations that execute Python code in real-time.
 
 ## 🚀 Quick Start
 
@@ -55,37 +55,49 @@ deno task automate:with-params                  # With parameter injection
 
 ### Custom Notebooks
 
-Create a Jupyter-format JSON file:
+Create a YAML notebook file:
 
-```json
-{
-  "cells": [
-    {
-      "id": "cell-1", 
-      "cell_type": "code",
-      "source": "import pandas as pd\nprint('Hello from automation!')",
-      "metadata": {},
-      "outputs": []
-    }
-  ]
-}
+```yaml
+metadata:
+  title: "My Data Analysis"
+  runtime: "python3"
+
+parameters:
+  data_size: 1000
+  debug_mode: true
+
+cells:
+  - id: "setup"
+    source: |
+      import pandas as pd
+      print(f'Hello from automation! Using {data_size} rows')
+      
+  - id: "analysis"
+    source: |
+      df = pd.DataFrame({'x': range(data_size)})
+      print(f'Created DataFrame with {len(df)} rows')
 ```
 
-Then run: `deno task automate:runtime your-notebook.json`
+Then run: `deno task automate:runtime your-notebook.yml`
 
 ### Parameter Injection
 
-Create `parameters.json`:
+Parameters can be embedded directly in YAML notebooks:
 
-```json
-{
-  "experiment_name": "test_run",
-  "data_size": 1000,
-  "model_type": "random_forest"
-}
+```yaml
+parameters:
+  experiment_name: "test_run"
+  data_size: 1000
+  model_type: "random_forest"
+
+cells:
+  - id: "analysis"
+    source: |
+      print(f'Running {experiment_name} with {data_size} samples')
+      model = model_type
 ```
 
-Parameters are automatically injected as the first cell:
+Or passed via separate JSON file for legacy support. Parameters are automatically injected as the first cell:
 
 ```python
 # Parameters injected by automation  
@@ -95,6 +107,28 @@ model_type = "random_forest"
 ```
 
 ## 🏗️ Architecture
+
+### YAML Notebook Format
+
+Clean, readable configuration format instead of verbose JSON:
+
+```yaml
+metadata:
+  title: "Analysis Title"
+  description: "What this notebook does"
+  runtime: "python3"
+  tags: ["data-science", "automation"]
+
+parameters:
+  data_size: 100
+  output_format: "png"
+
+cells:
+  - id: "setup"
+    source: |
+      import pandas as pd
+      print('Starting analysis...')
+```
 
 ### Real LiveStore Client
 
@@ -148,7 +182,8 @@ const automation = new NotebookAutomation({
 runt-eval/
 ├── automation-with-runtime.ts    # ⭐ Combined automation + runtime
 ├── notebook-automation.ts        # Standalone automation client
-├── example.json                  # Sample notebook for testing
+├── example.yml                   # ⭐ YAML notebook example
+├── example.json                  # Legacy Jupyter format support
 ├── parameters.json               # Parameter injection example
 └── .env                         # AUTH_TOKEN configuration
 ```
@@ -223,9 +258,9 @@ This repository includes a GitHub Actions workflow that runs automation every ho
    - Perfect for scheduled data reports, monitoring dashboards, etc.
 
 The workflow will:
-- ✅ Run every hour at minute 0 (e.g., 1:00, 2:00, 3:00...)
-- ✅ Execute the example notebook with real Python code
-- ✅ Output the live notebook URL for inspection
+- ✅ Run every hour at minute 37 (e.g., 1:37, 2:37, 3:37...)
+- ✅ Execute the YAML notebook with real Python code
+- ✅ Show complete execution logs in GitHub Actions
 - ✅ Clean up gracefully after completion
 
 ## 🤝 Contributing

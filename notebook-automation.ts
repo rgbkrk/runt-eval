@@ -15,31 +15,8 @@ import type {
 } from "@runt/schema";
 import { events, schema, tables } from "@runt/schema";
 
-// Jupyter notebook format interfaces
-interface JupyterCell {
-  id: string;
-  cell_type: "code" | "markdown" | "raw";
-  source: string;
-  metadata?: Record<string, any>;
-  outputs?: any[];
-}
-
-interface JupyterDocument {
-  cells: JupyterCell[];
-  metadata: {
-    kernelspec?: {
-      name: string;
-      display_name: string;
-    };
-    language_info?: {
-      name: string;
-      version: string;
-    };
-  };
-}
-
-// YAML notebook format interfaces
-interface YamlNotebook {
+// YAML notebook format - the canonical format
+interface NotebookDocument {
   metadata?: {
     title?: string;
     description?: string;
@@ -108,7 +85,7 @@ class NotebookAutomation {
    * Execute a document by coordinating with LiveStore and runtime agents
    */
   async executeDocument(
-    document: JupyterDocument,
+    document: NotebookDocument,
     parameters?: Record<string, any>,
   ): Promise<{
     success: boolean;
@@ -121,28 +98,21 @@ class NotebookAutomation {
     const failedCells: string[] = [];
 
     console.log("🚀 Starting notebook automation via LiveStore");
-    console.log(
-      `📖 Cells to execute: ${
-        document.cells.filter((c) => c.cell_type === "code").length
-      }`,
-    );
+    console.log(`📖 Cells to execute: ${document.cells.length}`);
 
     // Inject parameters as the first cell if provided
-    // First check if document has embedded parameters (YAML format)
-    const yamlParams = (document as any).parameters || {};
+    // Merge parameters from document, config, and arguments
+    const documentParams = document.parameters || {};
     const mergedParams = {
-      ...yamlParams,
+      ...documentParams,
       ...this.config.parameters,
       ...parameters,
     };
 
     if (Object.keys(mergedParams).length > 0) {
-      const parameterCell: JupyterCell = {
+      const parameterCell = {
         id: "parameters",
-        cell_type: "code",
         source: this.generateParameterCode(mergedParams),
-        metadata: { tags: ["parameters"] },
-        outputs: [],
       };
 
       document.cells.unshift(parameterCell);
@@ -158,11 +128,6 @@ class NotebookAutomation {
 
     // Execute cells sequentially
     for (const cell of document.cells) {
-      if (cell.cell_type !== "code") {
-        console.log(`⏭️  Skipping ${cell.cell_type} cell: ${cell.id}`);
-        continue;
-      }
-
       console.log(`🔄 Executing cell: ${cell.id}`);
       console.log(
         `   Source: ${cell.source.substring(0, 80)}${
@@ -276,7 +241,7 @@ class NotebookAutomation {
   /**
    * Initialize the notebook in LiveStore
    */
-  private async initializeNotebook(document: JupyterDocument): Promise<void> {
+  private async initializeNotebook(document: NotebookDocument): Promise<void> {
     try {
       console.log("📝 Initializing notebook in LiveStore...");
 
@@ -293,12 +258,9 @@ class NotebookAutomation {
 
       // Add all cells to the notebook
       for (const cell of document.cells) {
-        // Convert Jupyter cell_type to runt cellType
-        const cellType = cell.cell_type as CellType;
-
         await this.store.commit(events.cellCreated({
           id: cell.id,
-          cellType,
+          cellType: "code" as CellType,
           position: document.cells.indexOf(cell),
           createdBy: "automation",
         }));
@@ -326,7 +288,9 @@ class NotebookAutomation {
   /**
    * Execute a single cell by submitting execution request and waiting for completion
    */
-  private async executeCell(cell: JupyterCell): Promise<ExecutionResult> {
+  private async executeCell(
+    cell: { id: string; source: string },
+  ): Promise<ExecutionResult> {
     const startTime = Date.now();
     const cellId = cell.id;
 
@@ -453,9 +417,9 @@ class NotebookAutomation {
   }
 
   /**
-   * Load document from file or URL (supports both JSON and YAML formats)
+   * Load document from file or URL (supports YAML and JSON formats)
    */
-  static async loadDocument(source: string): Promise<JupyterDocument> {
+  static async loadDocument(source: string): Promise<NotebookDocument> {
     let content: string;
 
     if (source.startsWith("http")) {
@@ -465,42 +429,31 @@ class NotebookAutomation {
       content = await Deno.readTextFile(source);
     }
 
-    // Auto-detect format based on file extension or content
+    // Auto-detect format based on file extension
     if (source.endsWith(".yml") || source.endsWith(".yaml")) {
-      const yamlNotebook = parseYaml(content) as YamlNotebook;
-      const jupyterDoc = this.convertYamlToJupyter(yamlNotebook);
-      // Store parameters for later use
-      (jupyterDoc as any).parameters = yamlNotebook.parameters;
-      return jupyterDoc;
+      return parseYaml(content) as NotebookDocument;
     } else {
-      return JSON.parse(content) as JupyterDocument;
+      // Legacy Jupyter format support - convert to our format
+      const jupyterDoc = JSON.parse(content);
+      return this.convertJupyterToNotebook(jupyterDoc);
     }
   }
 
   /**
-   * Convert YAML notebook format to Jupyter format
+   * Convert legacy Jupyter format to our canonical YAML format
    */
-  private static convertYamlToJupyter(
-    yamlNotebook: YamlNotebook,
-  ): JupyterDocument {
-    const cells: JupyterCell[] = yamlNotebook.cells.map((cell) => ({
-      id: cell.id,
-      cell_type: "code" as const,
-      source: cell.source.trim(),
-      metadata: {},
-      outputs: [],
-    }));
+  private static convertJupyterToNotebook(jupyterDoc: any): NotebookDocument {
+    const cells = jupyterDoc.cells
+      .filter((cell: any) => cell.cell_type === "code")
+      .map((cell: any) => ({
+        id: cell.id,
+        source: cell.source,
+      }));
 
     return {
       metadata: {
-        kernelspec: {
-          name: yamlNotebook.metadata?.runtime || "python3",
-          display_name: yamlNotebook.metadata?.title || "Python 3",
-        },
-        language_info: {
-          name: "python",
-          version: "3.11.0",
-        },
+        title: jupyterDoc.metadata?.kernelspec?.display_name || "Notebook",
+        runtime: "python3",
       },
       cells,
     };
