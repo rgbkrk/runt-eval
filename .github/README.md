@@ -1,16 +1,19 @@
 # GitHub Actions Setup for Runt-Eval
 
-This directory contains GitHub Actions workflows for automated notebook execution.
+This directory contains GitHub Actions workflows for automated notebook
+execution.
 
 ## 🕐 Hourly Automation Workflow
 
-The `hourly-automation.yml` workflow automatically runs YAML notebook automation every hour, creating live collaborative notebooks on the runt.run platform.
+The `hourly-automation.yml` workflow automatically runs YAML notebook automation
+every hour, creating live collaborative notebooks on the runt.run platform.
 
 ### Setup Instructions
 
 #### 1. Add Repository Secret
 
-You need to add your runt.run authentication token as a GitHub repository secret:
+You need to add your runt.run authentication token as a GitHub repository
+secret:
 
 1. Go to your repository on GitHub
 2. Click **Settings** → **Secrets and variables** → **Actions**
@@ -21,7 +24,8 @@ You need to add your runt.run authentication token as a GitHub repository secret
 
 #### 2. Workflow Configuration
 
-The workflow is already configured in `.github/workflows/hourly-automation.yml` and will:
+The workflow is already configured in `.github/workflows/hourly-automation.yml`
+and will:
 
 - **Run automatically** every hour at minute 37 (1:37, 2:37, 3:37, etc.)
 - **Execute** the YAML notebook with real Python code
@@ -40,6 +44,7 @@ You can also trigger the workflow manually:
 ### Workflow Output
 
 Each successful run will show complete automation logs including:
+
 ```
 🚀 Starting hourly automation at Mon Jan 15 14:37:00 UTC 2024
 📔 Using notebook ID: automation-abc123-def456
@@ -80,14 +85,17 @@ To modify the automation:
 ### Troubleshooting
 
 **Workflow fails with authentication error:**
+
 - Verify `AUTH_TOKEN` secret is set correctly
 - Check that the token is valid and has proper permissions
 
 **Automation runs but cells stay queued:**
+
 - This indicates the runtime agent couldn't start properly
 - Check the workflow logs for Deno/Pyodide initialization errors
 
 **Can't find notebook URL:**
+
 - Look for "View live notebook:" in the complete automation logs
 - The URL is printed at the end of successful executions
 
@@ -98,4 +106,5 @@ To modify the automation:
 - Click on individual runs to see detailed logs
 - Live notebooks remain accessible at app.runt.run indefinitely
 
-This setup enables fully automated, scheduled data science workflows with live, shareable results!
+This setup enables fully automated, scheduled data science workflows with live,
+shareable results!

@@ -43,7 +43,7 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     runtimeAgent = new PyodideRuntimeAgent();
 
     // Start runtime agent in background (don't await keepAlive)
-    const runtimePromise = (async () => {
+    const _runtimePromise = (async () => {
       try {
         await runtimeAgent!.start();
         console.log("✅ Runtime agent started");
@@ -76,7 +76,7 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     const document = await NotebookAutomation.loadDocument(config.documentPath);
 
     // Load parameters if provided
-    let parameters: Record<string, any> = {};
+    let parameters: Record<string, unknown> = {};
     if (config.parametersPath) {
       try {
         const paramContent = await Deno.readTextFile(config.parametersPath);
@@ -92,7 +92,7 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
 
     // Execute the document
     console.log("🔄 Executing document...");
-    const results = await automation.executeDocument(document, parameters);
+    const _results = await automation.executeDocument(document, parameters);
 
     // Get execution summary
     const summary = automation.getExecutionSummary();
@@ -169,13 +169,14 @@ print(f"Python version: {sys.version}")
 
 # Test essential packages
 try:
-    import numpy as np
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    print("✅ Essential packages (numpy, pandas, matplotlib) are available")
-except ImportError as e:
-    print(f"❌ Package not available: {e}")
-    raise
+    try:
+        import numpy as np
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        print("✅ Essential packages (numpy, pandas, matplotlib) are available")
+    except ImportError as e:
+        print(f"❌ Package not available: {e}")
+        raise
 `,
       }],
     }, {});
@@ -199,7 +200,7 @@ async function main() {
 
   if (args.length < 1) {
     console.log(
-      "Usage: deno run automation-with-runtime.ts <document-path> [parameters-path]",
+      "Usage: deno run main.ts <document-path> [parameters-path]",
     );
     console.log("");
     console.log(
@@ -207,9 +208,9 @@ async function main() {
     );
     console.log("");
     console.log("Examples:");
-    console.log("  deno run automation-with-runtime.ts example.json");
+    console.log("  deno run main.ts example.yml");
     console.log(
-      "  deno run automation-with-runtime.ts example.json parameters.json",
+      "  deno run main.ts example.yml parameters.json",
     );
     console.log("");
     console.log("Environment variables:");

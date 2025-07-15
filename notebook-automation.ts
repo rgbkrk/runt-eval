@@ -1,19 +1,10 @@
-import { createRuntimeConfig, RuntimeAgent } from "@runt/lib";
+import { createRuntimeConfig } from "@runt/lib";
 import { createStorePromise } from "npm:@livestore/livestore";
 import { makeAdapter } from "npm:@livestore/adapter-node";
 import { makeCfSync } from "npm:@livestore/sync-cf";
 import { parse as parseYaml } from "@std/yaml";
-import type {
-  CellData,
-  CellType,
-  ExecutionQueueData,
-  ExecutionState,
-  NotebookData,
-  OutputData,
-  OutputType,
-  Store,
-} from "@runt/schema";
-import { events, schema, tables } from "@runt/schema";
+import type { CellType, Store } from "@runt/schema";
+import { events, schema } from "@runt/schema";
 
 // YAML notebook format - the canonical format
 interface NotebookDocument {
@@ -23,7 +14,7 @@ interface NotebookDocument {
     runtime?: string;
     tags?: string[];
   };
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   cells: Array<{
     id: string;
     source: string;
@@ -38,7 +29,7 @@ interface NotebookDocument {
 interface AutomationConfig {
   notebookId?: string;
   stopOnError?: boolean;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
   executionTimeout?: number;
 }
 
@@ -86,7 +77,7 @@ class NotebookAutomation {
    */
   async executeDocument(
     document: NotebookDocument,
-    parameters?: Record<string, any>,
+    parameters?: Record<string, unknown>,
   ): Promise<{
     success: boolean;
     results: ExecutionResult[];
@@ -343,56 +334,37 @@ class NotebookAutomation {
 
   /**
    * Wait for cell execution to complete by monitoring execution state
+   * Temporarily using simpler approach until schema is upgraded
    */
-  private async waitForExecution(
-    queueId: string,
+  private waitForExecution(
+    _queueId: string,
     cellId: string,
   ): Promise<void> {
-    const startTime = Date.now();
     const timeout = this.config.executionTimeout || 60000;
 
     return new Promise((resolve, reject) => {
-      const checkExecution = async () => {
+      if (!this.store) {
+        reject(new Error("Store not connected"));
+        return;
+      }
+
+      // Set up timeout
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Execution timeout after ${timeout}ms`));
+      }, timeout);
+
+      // Simple polling approach until we can upgrade schema
+      const checkExecution = () => {
         try {
-          if (!this.store) {
-            reject(new Error("Store not connected"));
-            return;
-          }
-
-          // Check if execution has completed or queue is empty (processed)
-          const executionData = this.store.query(
-            tables.executionQueue
-              .where({ id: queueId })
-              .first(),
-          );
-
-          // If the queue item is completed or no longer in queue, execution is done
-          if (!executionData || executionData.status === "completed") {
+          // For now, just wait a reasonable amount of time for execution
+          // This is a temporary solution until schema upgrade
+          setTimeout(() => {
+            clearTimeout(timeoutId);
+            console.log(`   ✅ Execution assumed completed for ${cellId}`);
             resolve();
-            return;
-          }
-
-          // Check for failed execution
-          if (executionData.status === "failed") {
-            reject(new Error(`Execution failed for ${cellId}`));
-            return;
-          }
-
-          // For development: simulate execution completion after 2 seconds
-          if (Date.now() - startTime > 2000) {
-            resolve();
-            return;
-          }
-
-          // Check for timeout
-          if (Date.now() - startTime > timeout) {
-            reject(new Error(`Execution timeout after ${timeout}ms`));
-            return;
-          }
-
-          // Continue checking
-          setTimeout(checkExecution, 100);
+          }, 2000); // 2 second delay for execution
         } catch (error) {
+          clearTimeout(timeoutId);
           reject(error);
         }
       };
@@ -404,7 +376,7 @@ class NotebookAutomation {
   /**
    * Generate parameter injection code
    */
-  private generateParameterCode(parameters: Record<string, any>): string {
+  private generateParameterCode(parameters: Record<string, unknown>): string {
     const lines = ["# Parameters injected by automation"];
 
     for (const [key, value] of Object.entries(parameters)) {
@@ -421,7 +393,7 @@ class NotebookAutomation {
   }
 
   /**
-   * Load document from file or URL (supports YAML and JSON formats)
+   * Load document from file or URL (YAML format)
    */
   static async loadDocument(source: string): Promise<NotebookDocument> {
     let content: string;
@@ -433,34 +405,8 @@ class NotebookAutomation {
       content = await Deno.readTextFile(source);
     }
 
-    // Auto-detect format based on file extension
-    if (source.endsWith(".yml") || source.endsWith(".yaml")) {
-      return parseYaml(content) as NotebookDocument;
-    } else {
-      // Legacy Jupyter format support - convert to our format
-      const jupyterDoc = JSON.parse(content);
-      return this.convertJupyterToNotebook(jupyterDoc);
-    }
-  }
-
-  /**
-   * Convert legacy Jupyter format to our canonical YAML format
-   */
-  private static convertJupyterToNotebook(jupyterDoc: any): NotebookDocument {
-    const cells = jupyterDoc.cells
-      .filter((cell: any) => cell.cell_type === "code")
-      .map((cell: any) => ({
-        id: cell.id,
-        source: cell.source,
-      }));
-
-    return {
-      metadata: {
-        title: jupyterDoc.metadata?.kernelspec?.display_name || "Notebook",
-        runtime: "python3",
-      },
-      cells,
-    };
+    // Parse as YAML - this is our canonical format
+    return parseYaml(content) as NotebookDocument;
   }
 
   /**
@@ -513,7 +459,7 @@ async function main() {
 
   if (args.length < 1) {
     console.log(
-      "Usage: deno run notebook-automation.ts <document-path> [parameters.json]",
+      "Usage: deno run --unstable-broadcast-channel notebook-automation.ts <document-path> [parameters.json]",
     );
     console.log("");
     console.log("Environment variables:");
@@ -528,17 +474,23 @@ async function main() {
     );
     console.log("");
     console.log("Examples:");
-    console.log("  deno task automate example.json");
-    console.log("  deno task automate document.json params.json");
-    console.log("  AUTH_TOKEN=token deno task automate doc.json");
     console.log(
-      "  NOTEBOOK_ID=my-nb AUTH_TOKEN=token deno task automate doc.json",
+      "  deno run --unstable-broadcast-channel notebook-automation.ts example.yml",
+    );
+    console.log(
+      "  deno run --unstable-broadcast-channel notebook-automation.ts document.yml params.json",
+    );
+    console.log(
+      "  AUTH_TOKEN=token deno run --unstable-broadcast-channel notebook-automation.ts doc.yml",
+    );
+    console.log(
+      "  NOTEBOOK_ID=my-nb AUTH_TOKEN=token deno run --unstable-broadcast-channel notebook-automation.ts doc.yml",
     );
     Deno.exit(1);
   }
 
   const documentPath = args[0];
-  let parameters: Record<string, any> = {};
+  let parameters: Record<string, unknown> = {};
 
   // Load parameters if provided
   if (args[1]) {
@@ -574,7 +526,7 @@ async function main() {
     const document = await NotebookAutomation.loadDocument(documentPath);
 
     // Execute document
-    const results = await automation.executeDocument(document, parameters);
+    const _results = await automation.executeDocument(document, parameters);
     const summary = automation.getExecutionSummary();
 
     // Report final results

@@ -2,12 +2,12 @@
   "version": "5",
   "specifiers": {
     "jsr:@openai/openai@^4.98.0": "4.102.0",
-    "jsr:@runt/ai@~0.6.2": "0.6.2",
-    "jsr:@runt/lib@*": "0.6.2",
-    "jsr:@runt/lib@~0.6.2": "0.6.2",
-    "jsr:@runt/pyodide-runtime-agent@*": "0.6.2",
-    "jsr:@runt/schema@*": "0.6.2",
-    "jsr:@runt/schema@~0.6.2": "0.6.2",
+    "jsr:@runt/ai@~0.6.3": "0.6.3",
+    "jsr:@runt/lib@*": "0.6.3",
+    "jsr:@runt/lib@~0.6.3": "0.6.3",
+    "jsr:@runt/pyodide-runtime-agent@*": "0.6.3",
+    "jsr:@runt/schema@*": "0.6.3",
+    "jsr:@runt/schema@~0.6.3": "0.6.3",
     "jsr:@std/cli@1": "1.0.20",
     "jsr:@std/yaml@1": "1.0.8",
     "npm:@livestore/adapter-node@*": "0.3.1_vite@6.3.4__picomatch@4.0.2_@opentelemetry+api@1.9.0",
@@ -25,20 +25,20 @@
     "@openai/openai@4.102.0": {
       "integrity": "ea5201bc5c8a696d3a5139a9cd2252e3ab9b2b880769a9cd7f05602ea1a02acf"
     },
-    "@runt/ai@0.6.2": {
-      "integrity": "1fdff9202593114a3076cd3dde80cccacb4704df39b6a39fd9cbea50919cc0f2",
+    "@runt/ai@0.6.3": {
+      "integrity": "af2837e3601971b6f2452e64e5f00a3a2acfa85523ead6b8867d757883c61693",
       "dependencies": [
         "jsr:@openai/openai",
-        "jsr:@runt/lib@~0.6.2",
-        "jsr:@runt/schema@~0.6.2",
+        "jsr:@runt/lib@~0.6.3",
+        "jsr:@runt/schema@~0.6.3",
         "npm:ollama",
         "npm:strip-ansi"
       ]
     },
-    "@runt/lib@0.6.2": {
-      "integrity": "cac4042a7e9262b46355ca28d05adaf0ed7382249a4db06cde6c1333d0e3f977",
+    "@runt/lib@0.6.3": {
+      "integrity": "0086b7060f0bbaef37777577434483f2cd5cf7a62673491067ecda07f91a238c",
       "dependencies": [
-        "jsr:@runt/schema@~0.6.2",
+        "jsr:@runt/schema@~0.6.3",
         "jsr:@std/cli",
         "npm:@livestore/adapter-node@~0.3.1",
         "npm:@livestore/livestore@~0.3.1",
@@ -46,18 +46,17 @@
         "npm:@opentelemetry/api"
       ]
     },
-    "@runt/pyodide-runtime-agent@0.6.2": {
-      "integrity": "b27bd2fd89b57147e765a7c4e465c0d77ec103abfc733082733ff9be7b38291f",
+    "@runt/pyodide-runtime-agent@0.6.3": {
+      "integrity": "e5fde6fb4f975c9f6b0da693f58a6ae90ae76e719e21334fac27830cbdfd77c9",
       "dependencies": [
         "jsr:@runt/ai",
-        "jsr:@runt/lib@~0.6.2",
-        "jsr:@runt/schema@~0.6.2",
-        "npm:@livestore/livestore@~0.3.1",
+        "jsr:@runt/lib@~0.6.3",
+        "jsr:@runt/schema@~0.6.3",
         "npm:pyodide"
       ]
     },
-    "@runt/schema@0.6.2": {
-      "integrity": "dfe76c7aafb14b7575b0ce1adc141627de873b38f6b5c1dccc837a250d316153",
+    "@runt/schema@0.6.3": {
+      "integrity": "32d083f3264e4ad1991d13af2f20427d4ba57566127579f1bb8e99f281b0daf5",
       "dependencies": [
         "npm:@livestore/livestore@~0.3.1"
       ]

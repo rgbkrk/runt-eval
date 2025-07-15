@@ -2,7 +2,9 @@
 
 [![Status: Working ✅](https://img.shields.io/badge/Status-Working%20%E2%9C%85-success)](https://github.com/rgbkrk/runt-eval)
 
-Papermill-style notebook automation for the [runt.run](https://app.runt.run) platform. Creates live, collaborative notebooks from clean YAML configurations that execute Python code in real-time.
+Papermill-style notebook automation for the [runt.run](https://app.runt.run)
+platform. Creates live, collaborative notebooks from clean YAML configurations
+that execute Python code in real-time.
 
 ## 🚀 Quick Start
 
@@ -20,17 +22,18 @@ deno task automate:runtime:example
 ## ✨ What This Does
 
 - **Creates live notebooks** with auto-generated IDs
-- **Executes Python cells** using Pyodide runtime  
+- **Executes Python cells** using Pyodide runtime
 - **Provides shareable URLs** for real-time collaboration
 - **Injects parameters** for reproducible experiments
 - **Runs entirely in-process** - no external services needed
 
-Perfect for automated data science workflows that humans can inspect and collaborate on.
+Perfect for automated data science workflows that humans can inspect and
+collaborate on.
 
 ## 🎯 Use Cases
 
 - **Automated reporting**: Run scheduled data analysis notebooks
-- **Parameter sweeps**: Execute experiments with different configurations  
+- **Parameter sweeps**: Execute experiments with different configurations
 - **CI/CD data validation**: Automated notebook-based testing
 - **Collaborative automation**: Share live results with team members
 
@@ -71,7 +74,7 @@ cells:
     source: |
       import pandas as pd
       print(f'Hello from automation! Using {data_size} rows')
-      
+
   - id: "analysis"
     source: |
       df = pd.DataFrame({'x': range(data_size)})
@@ -97,7 +100,8 @@ cells:
       model = model_type
 ```
 
-Or passed via separate JSON file for legacy support. Parameters are automatically injected as the first cell:
+Or passed via separate JSON file for legacy support. Parameters are
+automatically injected as the first cell:
 
 ```python
 # Parameters injected by automation  
@@ -169,10 +173,10 @@ NOTEBOOK_ID=custom-id                   # Optional, auto-generated
 
 ```typescript
 const automation = new NotebookAutomation({
-  notebookId: "my-experiment",     // Custom ID (optional)
-  executionTimeout: 60000,         // 60 second timeout  
-  stopOnError: false,              // Continue on cell failures
-  parameters: { debug: true }      // Global parameters
+  notebookId: "my-experiment", // Custom ID (optional)
+  executionTimeout: 60000, // 60 second timeout
+  stopOnError: false, // Continue on cell failures
+  parameters: { debug: true }, // Global parameters
 });
 ```
 
@@ -193,20 +197,24 @@ runt-eval/
 ### Common Issues
 
 **Cells stuck "Queued for execution"**
+
 - Runtime agent not connected to same notebook ID
 - Check AUTH_TOKEN in `.env` file
 
-**Import/module errors**  
+**Import/module errors**
+
 - Ensure all `@runt/*` dependencies in `deno.json`
 - Use `--unstable-broadcast-channel` flag
 
 **LiveStore connection issues**
+
 - Verify `AUTH_TOKEN` is valid
 - Check internet connection for sync
 
 ### Verification
 
 Working system should show:
+
 - ✅ Notebook creation with unique ID
 - ✅ Cell execution completing (not just queued)
 - ✅ Live URL accessible in browser
@@ -220,9 +228,9 @@ Working system should show:
 // After automation completes
 const summary = automation.getExecutionSummary();
 await slackWebhook({
-  text: summary.success 
+  text: summary.success
     ? `✅ Notebook completed: ${summary.notebookUrl}`
-    : `❌ Notebook failed: ${summary.notebookUrl}`
+    : `❌ Notebook failed: ${summary.notebookUrl}`,
 });
 ```
 
@@ -238,7 +246,8 @@ await slackWebhook({
 
 ### GitHub Actions Hourly Automation
 
-This repository includes a GitHub Actions workflow that runs automation every hour.
+This repository includes a GitHub Actions workflow that runs automation every
+hour.
 
 **Setup:**
 
@@ -249,8 +258,10 @@ This repository includes a GitHub Actions workflow that runs automation every ho
    - Value: Your runt.run authentication token
 
 2. **Enable Workflow**:
-   - The workflow at `.github/workflows/hourly-automation.yml` runs automatically
-   - Manual trigger: Go to Actions tab → "Hourly Notebook Automation" → "Run workflow"
+   - The workflow at `.github/workflows/hourly-automation.yml` runs
+     automatically
+   - Manual trigger: Go to Actions tab → "Hourly Notebook Automation" → "Run
+     workflow"
 
 3. **Monitor Results**:
    - Check Actions tab for execution logs
@@ -258,6 +269,7 @@ This repository includes a GitHub Actions workflow that runs automation every ho
    - Perfect for scheduled data reports, monitoring dashboards, etc.
 
 The workflow will:
+
 - ✅ Run every hour at minute 37 (e.g., 1:37, 2:37, 3:37...)
 - ✅ Execute the YAML notebook with real Python code
 - ✅ Show complete execution logs in GitHub Actions
@@ -266,7 +278,7 @@ The workflow will:
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create feature branch: `git checkout -b feature-name`  
+2. Create feature branch: `git checkout -b feature-name`
 3. Test changes: `deno task automate:runtime:example`
 4. Ensure no TypeScript errors: `deno check *.ts`
 5. Submit pull request
