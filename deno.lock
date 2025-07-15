@@ -14,8 +14,9 @@
     "npm:@livestore/adapter-node@~0.3.1": "0.3.1_vite@6.3.4__picomatch@4.0.2_@opentelemetry+api@1.9.0",
     "npm:@livestore/livestore@*": "0.3.1_@opentelemetry+api@1.9.0",
     "npm:@livestore/livestore@~0.3.1": "0.3.1_@opentelemetry+api@1.9.0",
-    "npm:@livestore/sync-cf@*": "0.3.1_@opentelemetry+api@1.9.0",
-    "npm:@livestore/sync-cf@~0.3.1": "0.3.1_@opentelemetry+api@1.9.0",
+    "npm:@livestore/sync-cf@*": "0.3.1",
+    "npm:@livestore/sync-cf@~0.3.1": "0.3.1",
+    "npm:@opentelemetry/api@*": "1.9.0",
     "npm:@opentelemetry/api@^1.9.0": "1.9.0",
     "npm:ollama@~0.5.16": "0.5.16",
     "npm:pyodide@~0.27.7": "0.27.7",
@@ -43,7 +44,7 @@
         "npm:@livestore/adapter-node@~0.3.1",
         "npm:@livestore/livestore@~0.3.1",
         "npm:@livestore/sync-cf@~0.3.1",
-        "npm:@opentelemetry/api"
+        "npm:@opentelemetry/api@^1.9.0"
       ]
     },
     "@runt/pyodide-runtime-agent@0.6.3": {
@@ -402,7 +403,7 @@
         "@livestore/wa-sqlite"
       ]
     },
-    "@livestore/sync-cf@0.3.1_@opentelemetry+api@1.9.0": {
+    "@livestore/sync-cf@0.3.1": {
       "integrity": "sha512-Vopen/K5/MRr4va/3u19cGLFslJs/fqtr5C2MhEOy080uYcClEWUDxyHh/Oec9wx4ZsbC0WKfTiUVN48DjHo/A==",
       "dependencies": [
         "@livestore/common",
