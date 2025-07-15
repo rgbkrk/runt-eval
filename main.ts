@@ -59,18 +59,18 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     // Give runtime more time to initialize packages in CI
     await new Promise((resolve) => setTimeout(resolve, 10000));
 
-    // Verify packages are ready before starting automation
-    console.log("🔍 Verifying package availability...");
-    await verifyPackagesReady(notebookId);
-    console.log("✅ Essential packages verified");
-
-    // Start automation
+    // Start automation client (reuse for both verification and main execution)
     console.log("🤖 Starting automation client...");
     automation = new NotebookAutomation({
       notebookId,
       stopOnError: config.stopOnError ?? true,
       executionTimeout: config.executionTimeout ?? 60000,
     });
+
+    // Verify packages are ready before starting main automation
+    console.log("🔍 Verifying package availability...");
+    await verifyPackagesReady(automation);
+    console.log("✅ Essential packages verified");
 
     // Load document
     const document = await NotebookAutomation.loadDocument(config.documentPath);
@@ -145,25 +145,25 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     } else {
       Deno.env.delete("NOTEBOOK_ID");
     }
+
+    // Force exit to prevent hanging on lingering async operations
+    setTimeout(() => {
+      Deno.exit(0);
+    }, 100);
   }
 }
 
 /**
- * Verify essential packages are available before starting automation
+ * Verify essential packages are available using existing automation instance
  */
-async function verifyPackagesReady(notebookId: string): Promise<void> {
-  const testAutomation = new NotebookAutomation({
-    notebookId: notebookId,
-    stopOnError: true,
-    executionTimeout: 30000,
-  });
-
-  try {
-    await testAutomation.executeDocument({
-      metadata: { title: "Package Test" },
-      cells: [{
-        id: "package-test",
-        source: `
+async function verifyPackagesReady(
+  automation: NotebookAutomation,
+): Promise<void> {
+  await automation.executeDocument({
+    metadata: { title: "Package Test" },
+    cells: [{
+      id: "package-test",
+      source: `
 import sys
 print(f"Python version: {sys.version}")
 
@@ -177,17 +177,14 @@ except ImportError as e:
     print(f"❌ Package not available: {e}")
     raise
 `,
-      }],
-    }, {});
+    }],
+  }, {});
 
-    const summary = testAutomation.getExecutionSummary();
-    if (!summary.success) {
-      throw new Error(
-        `Package verification failed: ${summary.failedCells.join(", ")}`,
-      );
-    }
-  } finally {
-    await testAutomation.cleanup();
+  const summary = automation.getExecutionSummary();
+  if (!summary.success) {
+    throw new Error(
+      `Package verification failed: ${summary.failedCells.join(", ")}`,
+    );
   }
 }
 
@@ -237,6 +234,8 @@ async function main() {
       executionTimeout: 60000,
       stopOnError: true,
     });
+
+    console.log("🎯 Process completed successfully");
   } catch (error) {
     console.error(
       "❌ Process failed:",

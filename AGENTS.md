@@ -50,10 +50,22 @@ cells:
 
 ### Reactive State
 
-The `waitForExecution` method now uses proper LiveStore reactive subscriptions
-for immediate response to execution state changes. This provides true reactive
+The `waitForExecution` method uses proper LiveStore reactive subscriptions for
+immediate response to execution state changes. This provides true reactive
 coordination without arbitrary timeouts - the system responds instantly when
 cells complete or fail through LiveStore's event-sourcing framework.
+
+**Implementation details:**
+- Uses `queryDb` with `tables.executionQueue.select()` for reactive queries
+- Subscribes to both "completed" and "failed" execution states
+- Applies `setTimeout(0)` async unsubscribe workaround for LiveStore's "destroyed thunk" issue
+- No polling, no artificial delays - pure event-driven execution
+
+### Notebook ID Coordination
+
+**Critical**: Runtime agent and automation client MUST use the same notebook ID.
+The verification step and main execution both use the same `NotebookAutomation`
+instance to avoid multiple LiveStore connections and coordination issues.
 
 ### BroadcastChannel Warnings
 
@@ -63,6 +75,7 @@ don't affect functionality.
 ### Execution Timeout
 
 Default timeout is 60 seconds per cell. Adjust via `executionTimeout` in config.
+Should rarely be hit due to reactive coordination.
 
 ## CI Usage
 
@@ -77,13 +90,64 @@ deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-autom
 ## Development Notes
 
 - Uses `--unstable-broadcast-channel` flag for LiveStore coordination
-- Reactive execution tracking via LiveStore subscriptions
-- All cells execute sequentially with parameter injection
+- **True reactive execution**: LiveStore subscriptions with immediate response to state changes
+- **Single LiveStore connection**: Reuses NotebookAutomation instance for verification and execution
+- **No artificial delays**: Cells execute immediately when previous cell completes
+- **Linear execution flow**: Sequential cell execution like traditional notebooks
+- **Async unsubscribe workaround**: Uses `setTimeout(0)` to avoid LiveStore "destroyed thunk" errors
 - Runtime agent handles Python execution via Pyodide
 
 ## Future Improvements
 
 1. Add support for cell-level timeout configuration
-2. Add support for conditional cell execution
+2. Add support for conditional cell execution  
 3. Implement parallel cell execution where dependencies allow
 4. Add retry mechanisms for failed executions
+5. Remove verification step entirely (may be unnecessary with reliable runtime)
+6. Optimize to single LiveStore connection across runtime agent and automation client
+
+## Technical Implementation
+
+### Reactive Execution Coordination
+
+The system achieves "React version for terminal" experience through:
+
+```typescript
+// Create reactive queries for execution completion
+const completedQuery$ = queryDb(
+  tables.executionQueue.select().where({
+    id: queueId,
+    status: "completed",
+  }),
+  { label: `execution-completed-${queueId}`, deps: [queueId] }
+);
+
+// Subscribe with immediate response
+const completedSub = this.store.subscribe(completedQuery$, {
+  onUpdate: (entries: readonly ExecutionQueueData[]) => {
+    if (entries.length > 0) {
+      // Immediate response - no polling delay
+      resolve();
+    }
+  },
+});
+```
+
+### LiveStore Workaround
+
+To avoid "attempted to compute destroyed thunk" errors:
+
+```typescript
+// Use setTimeout(0) for async cleanup
+setTimeout(() => {
+  try {
+    completedSub();
+    failedSub();
+  } catch (_error) {
+    // Ignore cleanup errors during shutdown
+  }
+}, 0);
+```
+
+This provides instant reactive coordination while working around LiveStore's
+internal subscription cleanup timing issues.
