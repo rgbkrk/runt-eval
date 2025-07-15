@@ -1,0 +1,294 @@
+metadata:
+  title: "Daily Infrastructure Health Check"
+  description: "Quick daily health check for critical infrastructure metrics"
+  runtime: "python3"
+  tags: ["monitoring", "daily", "health-check", "alerts"]
+  schedule: "daily"
+
+parameters:
+  # Time range for analysis (last 24 hours)
+  hours_back: 24
+
+  # Cloudflare credentials
+  cloudflare_api_token: "${CLOUDFLARE_API_TOKEN}"
+  cloudflare_account_id: "${CLOUDFLARE_ACCOUNT_ID}"
+
+  # Critical thresholds for alerts
+  critical_error_rate: 10.0  # Percent
+  warning_error_rate: 5.0    # Percent
+  high_latency_ms: 2000      # Milliseconds
+
+  # GraphQL endpoint
+  graphql_endpoint: "https://api.cloudflare.com/client/v4/graphql"
+
+cells:
+  - id: "setup"
+    source: |
+      import requests
+      import json
+      from datetime import datetime, timedelta, timezone
+      import pandas as pd
+
+      # Validate environment
+      if not cloudflare_api_token or cloudflare_api_token.startswith("$"):
+          raise ValueError("❌ CLOUDFLARE_API_TOKEN required")
+      if not cloudflare_account_id or cloudflare_account_id.startswith("$"):
+          raise ValueError("❌ CLOUDFLARE_ACCOUNT_ID required")
+
+      # Setup
+      headers = {
+          "Authorization": f"Bearer {cloudflare_api_token}",
+          "Content-Type": "application/json"
+      }
+
+      end_time = datetime.now(timezone.utc)
+      start_time = end_time - timedelta(hours=hours_back)
+
+      print("🏥 Daily Health Check Starting...")
+      print(f"📅 Period: {start_time.strftime('%m/%d %H:%M')} - {end_time.strftime('%m/%d %H:%M')} UTC")
+
+  - id: "workers-health"
+    source: |
+      # Check Workers health
+      workers_query = """
+      query GetWorkersHealth($accountTag: String!, $datetimeStart: String!, $datetimeEnd: String!) {
+        viewer {
+          accounts(filter: {accountTag: $accountTag}) {
+            workersInvocationsAdaptive(
+              limit: 100,
+              filter: {
+                datetime_geq: $datetimeStart,
+                datetime_leq: $datetimeEnd
+              }
+            ) {
+              sum {
+                requests
+                errors
+              }
+              dimensions {
+                scriptName
+              }
+            }
+          }
+        }
+      }
+      """
+
+      variables = {
+          "accountTag": cloudflare_account_id,
+          "datetimeStart": start_time.isoformat(),
+          "datetimeEnd": end_time.isoformat()
+      }
+
+      response = requests.post(graphql_endpoint, headers=headers,
+                              json={"query": workers_query, "variables": variables})
+
+      workers_health = "🟢 HEALTHY"
+      workers_issues = []
+
+      if response.status_code == 200:
+          result = response.json()
+          if "data" in result and result["data"]["viewer"]["accounts"]:
+              workers_data = result["data"]["viewer"]["accounts"][0]["workersInvocationsAdaptive"]
+
+              # Aggregate by script
+              script_stats = {}
+              for item in workers_data:
+                  script = item["dimensions"]["scriptName"]
+                  if script not in script_stats:
+                      script_stats[script] = {"requests": 0, "errors": 0}
+                  script_stats[script]["requests"] += item["sum"]["requests"]
+                  script_stats[script]["errors"] += item["sum"]["errors"]
+
+              # Check each script
+              for script, stats in script_stats.items():
+                  if stats["requests"] > 0:
+                      error_rate = (stats["errors"] / stats["requests"]) * 100
+                      if error_rate >= critical_error_rate:
+                          workers_health = "🔴 CRITICAL"
+                          workers_issues.append(f"{script}: {error_rate:.1f}% error rate")
+                      elif error_rate >= warning_error_rate:
+                          if workers_health == "🟢 HEALTHY":
+                              workers_health = "🟡 WARNING"
+                          workers_issues.append(f"{script}: {error_rate:.1f}% error rate")
+
+              total_requests = sum(s["requests"] for s in script_stats.values())
+              total_errors = sum(s["errors"] for s in script_stats.values())
+              overall_error_rate = (total_errors / total_requests * 100) if total_requests > 0 else 0
+
+              print(f"⚡ Workers Status: {workers_health}")
+              print(f"   📊 Total Requests: {total_requests:,}")
+              print(f"   ❌ Total Errors: {total_errors:,}")
+              print(f"   📈 Error Rate: {overall_error_rate:.2f}%")
+              print(f"   🔧 Active Scripts: {len(script_stats)}")
+
+              if workers_issues:
+                  print("   🚨 Issues:")
+                  for issue in workers_issues:
+                      print(f"      • {issue}")
+          else:
+              print("⚡ Workers Status: 🔵 NO DATA")
+      else:
+          workers_health = "🔴 API ERROR"
+          print(f"⚡ Workers Status: {workers_health} (HTTP {response.status_code})")
+
+  - id: "d1-health"
+    source: |
+      # Check D1 database health
+      d1_query = """
+      query GetD1Health($accountTag: String!, $datetimeStart: String!, $datetimeEnd: String!) {
+        viewer {
+          accounts(filter: {accountTag: $accountTag}) {
+            d1AnalyticsAdaptiveGroups(
+              limit: 100,
+              filter: {
+                datetime_geq: $datetimeStart,
+                datetime_leq: $datetimeEnd
+              }
+            ) {
+              sum {
+                readQueries
+                writeQueries
+                rowsRead
+                rowsWritten
+              }
+              avg {
+                queryBatchTimeMs
+              }
+              dimensions {
+                databaseName
+              }
+            }
+          }
+        }
+      }
+      """
+
+      response = requests.post(graphql_endpoint, headers=headers,
+                              json={"query": d1_query, "variables": variables})
+
+      d1_health = "🟢 HEALTHY"
+      d1_issues = []
+
+      if response.status_code == 200:
+          result = response.json()
+          if "data" in result and result["data"]["viewer"]["accounts"]:
+              d1_data = result["data"]["viewer"]["accounts"][0]["d1AnalyticsAdaptiveGroups"]
+
+              if d1_data:
+                  # Aggregate metrics
+                  total_reads = sum(item["sum"]["readQueries"] for item in d1_data)
+                  total_writes = sum(item["sum"]["writeQueries"] for item in d1_data)
+                  total_queries = total_reads + total_writes
+
+                  # Check latency
+                  latencies = [item["avg"]["queryBatchTimeMs"] for item in d1_data
+                              if item["avg"]["queryBatchTimeMs"] > 0]
+                  avg_latency = sum(latencies) / len(latencies) if latencies else 0
+
+                  if avg_latency > high_latency_ms:
+                      d1_health = "🟡 WARNING"
+                      d1_issues.append(f"High latency: {avg_latency:.1f}ms")
+
+                  # Check for inactive databases (no queries in last 24h)
+                  active_dbs = set(item["dimensions"]["databaseName"] for item in d1_data
+                                  if item["sum"]["readQueries"] + item["sum"]["writeQueries"] > 0)
+
+                  print(f"💾 D1 Status: {d1_health}")
+                  print(f"   📊 Total Queries: {total_queries:,}")
+                  print(f"   📖 Read Queries: {total_reads:,}")
+                  print(f"   ✏️  Write Queries: {total_writes:,}")
+                  print(f"   ⏱️  Avg Latency: {avg_latency:.1f}ms")
+                  print(f"   🗃️  Active DBs: {len(active_dbs)}")
+
+                  if d1_issues:
+                      print("   🚨 Issues:")
+                      for issue in d1_issues:
+                          print(f"      • {issue}")
+              else:
+                  print("💾 D1 Status: 🔵 NO ACTIVITY")
+          else:
+              print("💾 D1 Status: 🔵 NO DATA")
+      else:
+          d1_health = "🔴 API ERROR"
+          print(f"💾 D1 Status: {d1_health} (HTTP {response.status_code})")
+
+  - id: "overall-status"
+    source: |
+      # Determine overall system health
+      statuses = [workers_health, d1_health]
+
+      if any("🔴" in status for status in statuses):
+          overall = "🔴 CRITICAL"
+          status_emoji = "🚨"
+      elif any("🟡" in status for status in statuses):
+          overall = "🟡 WARNING"
+          status_emoji = "⚠️"
+      elif any("🔵" in status for status in statuses):
+          overall = "🔵 PARTIAL"
+          status_emoji = "ℹ️"
+      else:
+          overall = "🟢 HEALTHY"
+          status_emoji = "✅"
+
+      print("\n" + "="*50)
+      print(f"{status_emoji} OVERALL SYSTEM STATUS: {overall}")
+      print("="*50)
+
+      # Summary
+      all_issues = workers_issues + d1_issues
+      if all_issues:
+          print("🚨 Action Required:")
+          for i, issue in enumerate(all_issues, 1):
+              print(f"   {i}. {issue}")
+      else:
+          print("✅ All systems operating normally")
+
+      print(f"\n📊 Component Status:")
+      print(f"   ⚡ Workers: {workers_health}")
+      print(f"   💾 D1: {d1_health}")
+
+      print(f"\n⏰ Report generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
+      print("🔗 Cloudflare Dashboard: https://dash.cloudflare.com")
+
+  - id: "slack-webhook"
+    source: |
+      # Optional Slack notification (if webhook URL provided)
+      slack_webhook = "${SLACK_WEBHOOK_URL}"  # Optional environment variable
+
+      if slack_webhook and not slack_webhook.startswith("$"):
+          import requests
+
+          # Prepare Slack message
+          color = "danger" if "🔴" in overall else "warning" if "🟡" in overall else "good"
+
+          message = {
+              "attachments": [{
+                  "color": color,
+                  "title": "Daily Infrastructure Health Check",
+                  "fields": [
+                      {"title": "Overall Status", "value": overall, "short": True},
+                      {"title": "Workers", "value": workers_health, "short": True},
+                      {"title": "D1 Databases", "value": d1_health, "short": True},
+                      {"title": "Report Time", "value": datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC'), "short": True}
+                  ]
+              }]
+          }
+
+          if all_issues:
+              message["attachments"][0]["fields"].append({
+                  "title": "Issues Found",
+                  "value": "\n".join(f"• {issue}" for issue in all_issues),
+                  "short": False
+              })
+
+          try:
+              response = requests.post(slack_webhook, json=message)
+              if response.status_code == 200:
+                  print("\n📱 Slack notification sent successfully")
+              else:
+                  print(f"\n📱 Slack notification failed: {response.status_code}")
+          except Exception as e:
+              print(f"\n📱 Slack notification error: {e}")
+      else:
+          print("\n📱 Slack webhook not configured (optional)")

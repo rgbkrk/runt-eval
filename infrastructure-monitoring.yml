@@ -1,0 +1,535 @@
+metadata:
+  title: "Infrastructure Health & Performance Monitoring"
+  description: "Comprehensive monitoring of Cloudflare infrastructure including D1 databases, Workers, and analytics"
+  runtime: "python3"
+  tags: ["monitoring", "infrastructure", "cloudflare", "analytics", "d1"]
+  schedule: "daily"  # Ideal for daily automated runs
+
+parameters:
+  # Time range for analytics (last 24 hours by default)
+  hours_back: 24
+
+  # Cloudflare API credentials (set via environment)
+  cloudflare_api_token: "${CLOUDFLARE_API_TOKEN}"
+  cloudflare_account_id: "${CLOUDFLARE_ACCOUNT_ID}"
+
+  # Alert thresholds
+  error_rate_threshold: 5.0  # Percent
+  latency_p99_threshold: 5000  # Milliseconds
+  storage_usage_threshold: 80  # Percent of limit
+
+  # GraphQL endpoint
+  graphql_endpoint: "https://api.cloudflare.com/client/v4/graphql"
+
+cells:
+  - id: "setup"
+    source: |
+      import requests
+      import json
+      import pandas as pd
+      import matplotlib.pyplot as plt
+      import matplotlib.dates as mdates
+      from datetime import datetime, timedelta, timezone
+      import numpy as np
+      from typing import Dict, List, Any
+      import warnings
+      warnings.filterwarnings('ignore')
+
+      # Setup plotting style
+      plt.style.use('default')
+      plt.rcParams['figure.figsize'] = (12, 8)
+      plt.rcParams['font.size'] = 10
+
+      print("📊 Infrastructure Monitoring Setup Complete")
+      print(f"⏰ Monitoring period: Last {hours_back} hours")
+      print(f"🔗 GraphQL endpoint: {graphql_endpoint}")
+
+  - id: "auth-setup"
+    source: |
+      # Validate credentials
+      if not cloudflare_api_token or cloudflare_api_token.startswith("$"):
+          raise ValueError("❌ CLOUDFLARE_API_TOKEN environment variable required")
+
+      if not cloudflare_account_id or cloudflare_account_id.startswith("$"):
+          raise ValueError("❌ CLOUDFLARE_ACCOUNT_ID environment variable required")
+
+      # Setup headers
+      headers = {
+          "Authorization": f"Bearer {cloudflare_api_token}",
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+      }
+
+      # Calculate time range
+      end_time = datetime.now(timezone.utc)
+      start_time = end_time - timedelta(hours=hours_back)
+
+      print(f"✅ Authentication configured")
+      print(f"📅 Analysis period: {start_time.strftime('%Y-%m-%d %H:%M')} to {end_time.strftime('%Y-%m-%d %H:%M')} UTC")
+
+  - id: "d1-analytics"
+    source: |
+      # Query D1 database metrics
+      d1_query = """
+      query GetD1Analytics($accountTag: String!, $datetimeStart: String!, $datetimeEnd: String!) {
+        viewer {
+          accounts(filter: {accountTag: $accountTag}) {
+            d1AnalyticsAdaptiveGroups(
+              limit: 1000,
+              filter: {
+                datetime_geq: $datetimeStart,
+                datetime_leq: $datetimeEnd
+              }
+            ) {
+              sum {
+                readQueries
+                writeQueries
+                rowsRead
+                rowsWritten
+                queryBatchResponseBytes
+              }
+              avg {
+                queryBatchTimeMs
+              }
+              dimensions {
+                datetime
+                databaseName
+              }
+            }
+          }
+        }
+      }
+      """
+
+      variables = {
+          "accountTag": cloudflare_account_id,
+          "datetimeStart": start_time.isoformat(),
+          "datetimeEnd": end_time.isoformat()
+      }
+
+      response = requests.post(
+          graphql_endpoint,
+          headers=headers,
+          json={"query": d1_query, "variables": variables}
+      )
+
+      if response.status_code != 200:
+          print(f"❌ D1 Query failed: {response.status_code}")
+          print(f"Response: {response.text}")
+          d1_data = []
+      else:
+          result = response.json()
+          if "errors" in result:
+              print(f"❌ GraphQL errors: {result['errors']}")
+              d1_data = []
+          else:
+              d1_data = result["data"]["viewer"]["accounts"][0]["d1AnalyticsAdaptiveGroups"]
+
+      print(f"📊 D1 Analytics: {len(d1_data)} data points retrieved")
+
+  - id: "workers-analytics"
+    source: |
+      # Query Workers performance metrics
+      workers_query = """
+      query GetWorkersAnalytics($accountTag: String!, $datetimeStart: String!, $datetimeEnd: String!) {
+        viewer {
+          accounts(filter: {accountTag: $accountTag}) {
+            workersInvocationsAdaptive(
+              limit: 1000,
+              filter: {
+                datetime_geq: $datetimeStart,
+                datetime_leq: $datetimeEnd
+              }
+            ) {
+              sum {
+                requests
+                errors
+                subrequests
+              }
+              quantiles {
+                cpuTimeP50
+                cpuTimeP99
+              }
+              avg {
+                cpuTime
+              }
+              dimensions {
+                datetime
+                scriptName
+                status
+              }
+            }
+          }
+        }
+      }
+      """
+
+      response = requests.post(
+          graphql_endpoint,
+          headers=headers,
+          json={"query": workers_query, "variables": variables}
+      )
+
+      if response.status_code != 200:
+          print(f"❌ Workers Query failed: {response.status_code}")
+          workers_data = []
+      else:
+          result = response.json()
+          if "errors" in result:
+              print(f"❌ GraphQL errors: {result['errors']}")
+              workers_data = []
+          else:
+              workers_data = result["data"]["viewer"]["accounts"][0]["workersInvocationsAdaptive"]
+
+      print(f"🔧 Workers Analytics: {len(workers_data)} data points retrieved")
+
+  - id: "data-processing"
+    source: |
+      # Process D1 data
+      d1_df = pd.DataFrame()
+      if d1_data:
+          d1_records = []
+          for item in d1_data:
+              record = {
+                  'datetime': pd.to_datetime(item['dimensions']['datetime']),
+                  'database': item['dimensions'].get('databaseName', 'unknown'),
+                  'read_queries': item['sum']['readQueries'],
+                  'write_queries': item['sum']['writeQueries'],
+                  'rows_read': item['sum']['rowsRead'],
+                  'rows_written': item['sum']['rowsWritten'],
+                  'response_bytes': item['sum']['queryBatchResponseBytes'],
+                  'avg_latency_ms': item['avg']['queryBatchTimeMs']
+              }
+              d1_records.append(record)
+
+          d1_df = pd.DataFrame(d1_records)
+          d1_df = d1_df.sort_values('datetime')
+
+      # Process Workers data
+      workers_df = pd.DataFrame()
+      if workers_data:
+          workers_records = []
+          for item in workers_data:
+              record = {
+                  'datetime': pd.to_datetime(item['dimensions']['datetime']),
+                  'script_name': item['dimensions'].get('scriptName', 'unknown'),
+                  'status': item['dimensions'].get('status', 'unknown'),
+                  'requests': item['sum']['requests'],
+                  'errors': item['sum']['errors'],
+                  'subrequests': item['sum']['subrequests'],
+                  'cpu_time_p50': item['quantiles'].get('cpuTimeP50', 0),
+                  'cpu_time_p99': item['quantiles'].get('cpuTimeP99', 0),
+                  'avg_cpu_time': item['avg'].get('cpuTime', 0)
+              }
+              workers_records.append(record)
+
+          workers_df = pd.DataFrame(workers_records)
+          workers_df = workers_df.sort_values('datetime')
+
+      print(f"🔍 Processed data:")
+      print(f"   D1 records: {len(d1_df)}")
+      print(f"   Workers records: {len(workers_df)}")
+
+  - id: "d1-dashboard"
+    source: |
+      if not d1_df.empty:
+          fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+          fig.suptitle('D1 Database Performance Metrics', fontsize=16, fontweight='bold')
+
+          # Query Volume
+          ax1 = axes[0, 0]
+          d1_hourly = d1_df.groupby(d1_df['datetime'].dt.floor('h')).agg({
+              'read_queries': 'sum',
+              'write_queries': 'sum'
+          }).reset_index()
+
+          ax1.plot(d1_hourly['datetime'], d1_hourly['read_queries'],
+                   label='Read Queries', marker='o', linewidth=2)
+          ax1.plot(d1_hourly['datetime'], d1_hourly['write_queries'],
+                   label='Write Queries', marker='s', linewidth=2)
+          ax1.set_title('Query Volume (per hour)')
+          ax1.set_ylabel('Queries')
+          ax1.legend()
+          ax1.grid(True, alpha=0.3)
+
+          # Row Operations
+          ax2 = axes[0, 1]
+          d1_hourly_rows = d1_df.groupby(d1_df['datetime'].dt.floor('h')).agg({
+              'rows_read': 'sum',
+              'rows_written': 'sum'
+          }).reset_index()
+
+          ax2.plot(d1_hourly_rows['datetime'], d1_hourly_rows['rows_read'],
+                   label='Rows Read', marker='o', linewidth=2)
+          ax2.plot(d1_hourly_rows['datetime'], d1_hourly_rows['rows_written'],
+                   label='Rows Written', marker='s', linewidth=2)
+          ax2.set_title('Row Operations (per hour)')
+          ax2.set_ylabel('Rows')
+          ax2.legend()
+          ax2.grid(True, alpha=0.3)
+
+          # Query Latency
+          ax3 = axes[1, 0]
+          latency_data = d1_df[d1_df['avg_latency_ms'] > 0]
+          if not latency_data.empty:
+              latency_hourly = latency_data.groupby(latency_data['datetime'].dt.floor('h')).agg({
+                  'avg_latency_ms': 'mean'
+              }).reset_index()
+
+              ax3.plot(latency_hourly['datetime'], latency_hourly['avg_latency_ms'],
+                       label='Avg Latency', marker='o', linewidth=2, color='red')
+              ax3.axhline(y=latency_p99_threshold, color='orange', linestyle='--',
+                         label=f'Threshold ({latency_p99_threshold}ms)')
+              ax3.set_title('Query Latency')
+              ax3.set_ylabel('Milliseconds')
+              ax3.legend()
+              ax3.grid(True, alpha=0.3)
+
+          # Database Usage by Database
+          ax4 = axes[1, 1]
+          db_usage = d1_df.groupby('database').agg({
+              'read_queries': 'sum',
+              'write_queries': 'sum',
+              'response_bytes': 'sum'
+          }).reset_index()
+
+          if not db_usage.empty:
+              db_usage['total_queries'] = db_usage['read_queries'] + db_usage['write_queries']
+              top_dbs = db_usage.nlargest(10, 'total_queries')
+
+              ax4.bar(range(len(top_dbs)), top_dbs['total_queries'])
+              ax4.set_title('Total Queries by Database (Top 10)')
+              ax4.set_ylabel('Total Queries')
+              ax4.set_xticks(range(len(top_dbs)))
+              ax4.set_xticklabels(top_dbs['database'], rotation=45, ha='right')
+
+          plt.tight_layout()
+          plt.show()
+
+          # Summary stats
+          total_queries = d1_df['read_queries'].sum() + d1_df['write_queries'].sum()
+          total_rows = d1_df['rows_read'].sum() + d1_df['rows_written'].sum()
+          avg_latency = d1_df[d1_df['avg_latency_ms'] > 0]['avg_latency_ms'].mean()
+
+          print(f"\n📊 D1 Summary (Last {hours_back}h):")
+          print(f"   Total Queries: {total_queries:,}")
+          print(f"   Total Rows Processed: {total_rows:,}")
+          print(f"   Average Latency: {avg_latency:.1f}ms" if not pd.isna(avg_latency) else "   Average Latency: N/A")
+          print(f"   Unique Databases: {d1_df['database'].nunique()}")
+      else:
+          print("📊 No D1 data available for visualization")
+
+  - id: "workers-dashboard"
+    source: |
+      if not workers_df.empty:
+          fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+          fig.suptitle('Workers Performance Metrics', fontsize=16, fontweight='bold')
+
+          # Request Volume
+          ax1 = axes[0, 0]
+          workers_hourly = workers_df.groupby(workers_df['datetime'].dt.floor('h')).agg({
+              'requests': 'sum',
+              'errors': 'sum'
+          }).reset_index()
+
+          ax1.plot(workers_hourly['datetime'], workers_hourly['requests'],
+                   label='Total Requests', marker='o', linewidth=2)
+          ax1.plot(workers_hourly['datetime'], workers_hourly['errors'],
+                   label='Errors', marker='x', linewidth=2, color='red')
+          ax1.set_title('Request Volume (per hour)')
+          ax1.set_ylabel('Requests')
+          ax1.legend()
+          ax1.grid(True, alpha=0.3)
+
+          # Error Rate
+          ax2 = axes[0, 1]
+          workers_hourly['error_rate'] = (workers_hourly['errors'] / workers_hourly['requests'] * 100).fillna(0)
+
+          ax2.plot(workers_hourly['datetime'], workers_hourly['error_rate'],
+                   label='Error Rate', marker='o', linewidth=2, color='red')
+          ax2.axhline(y=error_rate_threshold, color='orange', linestyle='--',
+                     label=f'Threshold ({error_rate_threshold}%)')
+          ax2.set_title('Error Rate')
+          ax2.set_ylabel('Error Rate (%)')
+          ax2.legend()
+          ax2.grid(True, alpha=0.3)
+
+          # CPU Time P99
+          ax3 = axes[1, 0]
+          cpu_data = workers_df[workers_df['cpu_time_p99'] > 0]
+          if not cpu_data.empty:
+              cpu_hourly = cpu_data.groupby(cpu_data['datetime'].dt.floor('h')).agg({
+                  'cpu_time_p99': 'mean'
+              }).reset_index()
+
+              ax3.plot(cpu_hourly['datetime'], cpu_hourly['cpu_time_p99'],
+                       label='P99 CPU Time', marker='o', linewidth=2, color='purple')
+              ax3.set_title('CPU Time P99')
+              ax3.set_ylabel('Milliseconds')
+              ax3.legend()
+              ax3.grid(True, alpha=0.3)
+
+          # Top Scripts by Request Volume
+          ax4 = axes[1, 1]
+          script_stats = workers_df.groupby('script_name').agg({
+              'requests': 'sum',
+              'errors': 'sum'
+          }).reset_index()
+
+          if not script_stats.empty:
+              top_scripts = script_stats.nlargest(10, 'requests')
+
+              ax4.bar(range(len(top_scripts)), top_scripts['requests'])
+              ax4.set_title('Requests by Script (Top 10)')
+              ax4.set_ylabel('Total Requests')
+              ax4.set_xticks(range(len(top_scripts)))
+              ax4.set_xticklabels(top_scripts['script_name'], rotation=45, ha='right')
+
+          plt.tight_layout()
+          plt.show()
+
+          # Summary stats
+          total_requests = workers_df['requests'].sum()
+          total_errors = workers_df['errors'].sum()
+          overall_error_rate = (total_errors / total_requests * 100) if total_requests > 0 else 0
+          avg_cpu_p99 = workers_df[workers_df['cpu_time_p99'] > 0]['cpu_time_p99'].mean()
+
+          print(f"\n🔧 Workers Summary (Last {hours_back}h):")
+          print(f"   Total Requests: {total_requests:,}")
+          print(f"   Total Errors: {total_errors:,}")
+          print(f"   Error Rate: {overall_error_rate:.2f}%")
+          print(f"   Avg P99 CPU Time: {avg_cpu_p99:.1f}ms" if not pd.isna(avg_cpu_p99) else "   Avg P99 CPU Time: N/A")
+          print(f"   Active Scripts: {workers_df['script_name'].nunique()}")
+      else:
+          print("🔧 No Workers data available for visualization")
+
+  - id: "health-alerts"
+    source: |
+      alerts = []
+
+      # D1 Health Checks
+      if not d1_df.empty:
+          # Check average latency
+          recent_latency = d1_df[d1_df['avg_latency_ms'] > 0]['avg_latency_ms'].tail(10).mean()
+          if not pd.isna(recent_latency) and recent_latency > latency_p99_threshold:
+              alerts.append({
+                  'type': '🐌 D1 High Latency',
+                  'message': f'Average latency {recent_latency:.1f}ms exceeds threshold {latency_p99_threshold}ms',
+                  'severity': 'warning'
+              })
+
+          # Check for databases with no recent activity
+          recent_activity = d1_df[d1_df['datetime'] > (end_time - timedelta(hours=2))]
+          if recent_activity.empty:
+              alerts.append({
+                  'type': '⚠️ D1 No Recent Activity',
+                  'message': 'No D1 database activity in the last 2 hours',
+                  'severity': 'info'
+              })
+
+      # Workers Health Checks
+      if not workers_df.empty:
+          # Check error rate
+          recent_workers = workers_df[workers_df['datetime'] > (end_time - timedelta(hours=1))]
+          if not recent_workers.empty:
+              recent_requests = recent_workers['requests'].sum()
+              recent_errors = recent_workers['errors'].sum()
+              recent_error_rate = (recent_errors / recent_requests * 100) if recent_requests > 0 else 0
+
+              if recent_error_rate > error_rate_threshold:
+                  alerts.append({
+                      'type': '🚨 Workers High Error Rate',
+                      'message': f'Error rate {recent_error_rate:.2f}% exceeds threshold {error_rate_threshold}%',
+                      'severity': 'critical'
+                  })
+
+          # Check for scripts with high CPU usage
+          high_cpu_scripts = workers_df[workers_df['cpu_time_p99'] > 1000].groupby('script_name')['cpu_time_p99'].mean()
+          if not high_cpu_scripts.empty:
+              for script, cpu_time in high_cpu_scripts.items():
+                  alerts.append({
+                      'type': '⚡ High CPU Usage',
+                      'message': f'Script "{script}" has high P99 CPU time: {cpu_time:.1f}ms',
+                      'severity': 'warning'
+                  })
+
+      # Display alerts
+      if alerts:
+          print("🚨 Health Alerts:")
+          for alert in alerts:
+              icon = "🔴" if alert['severity'] == 'critical' else "🟡" if alert['severity'] == 'warning' else "🔵"
+              print(f"   {icon} {alert['type']}: {alert['message']}")
+      else:
+          print("✅ All systems healthy - no alerts detected")
+
+  - id: "summary-report"
+    source: |
+      # Generate comprehensive summary
+      print("="*80)
+      print("🏗️  INFRASTRUCTURE HEALTH REPORT")
+      print("="*80)
+      print(f"📅 Report Period: {start_time.strftime('%Y-%m-%d %H:%M')} to {end_time.strftime('%Y-%m-%d %H:%M')} UTC")
+      print(f"🕐 Duration: {hours_back} hours")
+      print(f"⏰ Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
+      print()
+
+      # Overall status
+      critical_alerts = len([a for a in alerts if a['severity'] == 'critical'])
+      warning_alerts = len([a for a in alerts if a['severity'] == 'warning'])
+
+      if critical_alerts > 0:
+          status = "🔴 CRITICAL"
+      elif warning_alerts > 0:
+          status = "🟡 WARNING"
+      else:
+          status = "🟢 HEALTHY"
+
+      print(f"📊 Overall Status: {status}")
+      print(f"🚨 Critical Alerts: {critical_alerts}")
+      print(f"⚠️  Warning Alerts: {warning_alerts}")
+      print()
+
+      # Service-specific summaries
+      if not d1_df.empty:
+          print("💾 D1 DATABASES:")
+          print(f"   📈 Total Queries: {(d1_df['read_queries'].sum() + d1_df['write_queries'].sum()):,}")
+          print(f"   📊 Total Rows: {(d1_df['rows_read'].sum() + d1_df['rows_written'].sum()):,}")
+          print(f"   🗃️  Active Databases: {d1_df['database'].nunique()}")
+          avg_latency = d1_df[d1_df['avg_latency_ms'] > 0]['avg_latency_ms'].mean()
+          print(f"   ⏱️  Avg Latency: {avg_latency:.1f}ms" if not pd.isna(avg_latency) else "   ⏱️  Avg Latency: N/A")
+          print()
+
+      if not workers_df.empty:
+          print("⚡ WORKERS:")
+          total_requests = workers_df['requests'].sum()
+          total_errors = workers_df['errors'].sum()
+          error_rate = (total_errors / total_requests * 100) if total_requests > 0 else 0
+          print(f"   📈 Total Requests: {total_requests:,}")
+          print(f"   ❌ Total Errors: {total_errors:,}")
+          print(f"   📊 Error Rate: {error_rate:.2f}%")
+          print(f"   🔧 Active Scripts: {workers_df['script_name'].nunique()}")
+          avg_cpu = workers_df[workers_df['cpu_time_p99'] > 0]['cpu_time_p99'].mean()
+          print(f"   ⚡ Avg P99 CPU: {avg_cpu:.1f}ms" if not pd.isna(avg_cpu) else "   ⚡ Avg P99 CPU: N/A")
+          print()
+
+      # Recommendations
+      print("💡 RECOMMENDATIONS:")
+      if not d1_df.empty and not pd.isna(d1_df[d1_df['avg_latency_ms'] > 0]['avg_latency_ms'].mean()):
+          if d1_df[d1_df['avg_latency_ms'] > 0]['avg_latency_ms'].mean() > 1000:
+              print("   🐌 Consider optimizing slow D1 queries with indexes")
+
+      if not workers_df.empty:
+          high_error_scripts = workers_df.groupby('script_name').agg({
+              'requests': 'sum', 'errors': 'sum'
+          }).reset_index()
+          high_error_scripts['error_rate'] = high_error_scripts['errors'] / high_error_scripts['requests'] * 100
+          problematic = high_error_scripts[high_error_scripts['error_rate'] > 5]
+          if not problematic.empty:
+              print("   🚨 Review error handling in high-error Workers scripts")
+
+      if len(alerts) == 0:
+          print("   ✅ Infrastructure is running smoothly")
+
+      print()
+      print("🔗 Cloudflare Dashboard: https://dash.cloudflare.com")
+      print("="*80)

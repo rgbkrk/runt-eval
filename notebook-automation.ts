@@ -118,26 +118,34 @@ class NotebookAutomation {
     // Prefill complete notebook structure immediately
     await this.prefillNotebookStructure(document);
 
-    // Pre-queue all executions (runtime will process when ready)
-    const queueIds = await this.preQueueAllExecutions(document);
-
     console.log(
-      "⚡ Pre-queued all executions - runtime will process as fast as possible",
+      "⚡ Structure pre-filled - executing cells sequentially with error handling",
     );
 
-    // Wait for all executions to complete in parallel
-    const results = await this.waitForAllExecutions(queueIds, document.cells);
-    this.executionResults = results;
+    // Execute cells sequentially with proper error handling
+    for (const [index, cell] of document.cells.entries()) {
+      console.log(
+        `🔄 Executing cell ${index + 1}/${document.cells.length}: ${cell.id}`,
+      );
+      console.log(
+        `   Source: ${cell.source.substring(0, 80)}${
+          cell.source.length > 80 ? "..." : ""
+        }`,
+      );
 
-    // Check for failures
-    for (const result of results) {
+      const result = await this.executeCell(cell);
+      this.executionResults.push(result);
+
       if (!result.success) {
-        failedCells.push(result.cellId);
-        console.error(`❌ Cell ${result.cellId} failed: ${result.error}`);
+        failedCells.push(cell.id);
+        console.error(`❌ Cell ${cell.id} failed: ${result.error}`);
+
+        if (this.config.stopOnError) {
+          console.log("🛑 Stopping execution due to error");
+          break;
+        }
       } else {
-        console.log(
-          `✅ Cell ${result.cellId} completed in ${result.duration}ms`,
-        );
+        console.log(`✅ Cell ${cell.id} completed in ${result.duration}ms`);
       }
     }
 
@@ -282,54 +290,7 @@ class NotebookAutomation {
   }
 
   /**
-   * Pre-queue all execution requests (runtime processes when ready)
-   */
-  private async preQueueAllExecutions(
-    document: NotebookDocument,
-  ): Promise<string[]> {
-    try {
-      console.log("🚀 Pre-queuing execution requests...");
-
-      if (!this.store) {
-        throw new Error("Store not connected");
-      }
-
-      // Wait for runtime to be available
-      await this.ensureRuntimeAvailable("pre-queue-check");
-
-      // Pre-queue all execution requests
-      const queueIds: string[] = [];
-      console.log("📋 Queueing all executions for parallel processing...");
-
-      for (const [index, cell] of document.cells.entries()) {
-        const queueId = `${cell.id}-${Date.now()}-${index}`;
-        queueIds.push(queueId);
-
-        console.log(
-          `   📤 Queuing ${cell.id} (${index + 1}/${document.cells.length})`,
-        );
-
-        this.store.commit(events.executionRequested({
-          queueId,
-          cellId: cell.id,
-          executionCount: index + 1,
-          requestedBy: "automation",
-        }));
-      }
-
-      console.log(`⚡ Pre-queued ${queueIds.length} executions`);
-      return queueIds;
-    } catch (error) {
-      console.error(
-        "❌ Failed to pre-queue executions:",
-        error instanceof Error ? error.message : String(error),
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Execute a single cell by submitting execution request and waiting for completion
+   * Execute a single cell with proper error handling
    */
   private async executeCell(
     cell: { id: string; source: string },
@@ -344,11 +305,11 @@ class NotebookAutomation {
 
       console.log(`   📤 Submitting execution request for ${cellId}`);
 
-      // Quick sanity checks
-      const cell = this.store.query(
+      // Quick sanity check
+      const cellRecord = this.store.query(
         tables.cells.select().where({ id: cellId }),
       )[0];
-      if (!cell) {
+      if (!cellRecord) {
         throw new Error(`Cell ${cellId} not found in store`);
       }
 
@@ -614,48 +575,6 @@ class NotebookAutomation {
   /**
    * Utility delay function
    */
-  private async waitForAllExecutions(
-    queueIds: string[],
-    cells: { id: string; source: string }[],
-  ): Promise<ExecutionResult[]> {
-    const results: ExecutionResult[] = [];
-    const startTime = Date.now();
-
-    console.log(`⏱️  Waiting for ${queueIds.length} executions to complete...`);
-
-    // Wait for each execution in parallel
-    const executionPromises = queueIds.map(async (queueId, index) => {
-      const cellId = cells[index].id;
-      const cellStartTime = Date.now();
-
-      try {
-        await this.waitForExecution(queueId, cellId);
-        return {
-          success: true,
-          cellId,
-          queueId,
-          duration: Date.now() - cellStartTime,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          cellId,
-          queueId,
-          duration: Date.now() - cellStartTime,
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
-    });
-
-    // Wait for all executions to complete
-    const completedResults = await Promise.all(executionPromises);
-    results.push(...completedResults);
-
-    const totalDuration = Date.now() - startTime;
-    console.log(`⚡ All executions completed in ${totalDuration}ms`);
-
-    return results;
-  }
 
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));

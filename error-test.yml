@@ -1,0 +1,39 @@
+metadata:
+  title: "Error Handling Test"
+  description: "Simple test to validate error handling and stopOnError behavior"
+  runtime: "python3"
+  tags: ["test", "error-handling"]
+
+parameters:
+  should_fail: true
+
+cells:
+  - id: "setup"
+    source: |
+      print("🔧 Setting up test...")
+      print(f"Should fail: {should_fail}")
+
+  - id: "success-cell"
+    source: |
+      print("✅ This cell should succeed")
+      result = 2 + 2
+      print(f"2 + 2 = {result}")
+
+  - id: "conditional-error"
+    source: |
+      print("🧪 Testing conditional error...")
+      if should_fail:
+          print("💥 Intentionally raising error")
+          raise ValueError("This is an intentional test error!")
+      else:
+          print("✅ No error - test passed")
+
+  - id: "should-not-run"
+    source: |
+      print("❌ THIS SHOULD NOT RUN if stopOnError=True and previous cell failed")
+      print("If you see this message, error handling is broken!")
+
+  - id: "final-cell"
+    source: |
+      print("❌ THIS SHOULD ALSO NOT RUN after an error")
+      print("Error handling test failed!")

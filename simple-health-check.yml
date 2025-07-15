@@ -1,0 +1,188 @@
+metadata:
+  title: "Simple Infrastructure Health Check"
+  description: "Basic health monitoring without external API dependencies"
+  runtime: "python3"
+  tags: ["monitoring", "health-check", "simple"]
+
+parameters:
+  # Time settings
+  check_timestamp: "${DATE}"
+  environment: "production"
+
+  # Basic system checks
+  expected_services: ["database", "api", "cache"]
+
+cells:
+  - id: "setup"
+    source: |
+      import json
+      import time
+      from datetime import datetime, timezone
+      import random
+
+      print("🏥 Simple Health Check Starting...")
+      print(f"🕐 Timestamp: {datetime.now(timezone.utc).isoformat()}")
+      print(f"🏷️  Environment: {environment}")
+      print()
+
+  - id: "system-status"
+    source: |
+      # Simulate system status checks
+      print("🔍 Checking system components...")
+
+      # Mock health check results
+      component_status = {}
+      overall_healthy = True
+
+      for service in expected_services:
+          # Simulate random service health (90% healthy)
+          is_healthy = random.random() > 0.1
+          status_icon = "🟢" if is_healthy else "🔴"
+          component_status[service] = {
+              "status": "healthy" if is_healthy else "unhealthy",
+              "response_time_ms": round(random.uniform(50, 200), 1),
+              "last_check": datetime.now(timezone.utc).isoformat()
+          }
+
+          print(f"   {status_icon} {service}: {component_status[service]['status']} ({component_status[service]['response_time_ms']}ms)")
+
+          if not is_healthy:
+              overall_healthy = False
+
+      print()
+      overall_status = "🟢 HEALTHY" if overall_healthy else "🔴 DEGRADED"
+      print(f"📊 Overall Status: {overall_status}")
+
+  - id: "performance-metrics"
+    source: |
+      # Mock performance metrics
+      print("📈 Performance Metrics:")
+
+      metrics = {
+          "cpu_usage_percent": round(random.uniform(10, 80), 1),
+          "memory_usage_percent": round(random.uniform(20, 70), 1),
+          "disk_usage_percent": round(random.uniform(30, 90), 1),
+          "active_connections": random.randint(100, 1000),
+          "requests_per_minute": random.randint(50, 500)
+      }
+
+      # Display metrics with status indicators
+      for metric, value in metrics.items():
+          if "percent" in metric:
+              if value > 90:
+                  icon = "🔴"
+              elif value > 75:
+                  icon = "🟡"
+              else:
+                  icon = "🟢"
+              print(f"   {icon} {metric.replace('_', ' ').title()}: {value}%")
+          else:
+              print(f"   📊 {metric.replace('_', ' ').title()}: {value:,}")
+
+  - id: "alert-summary"
+    source: |
+      # Generate alert summary
+      print("\n🚨 Alert Summary:")
+
+      alerts = []
+
+      # Check for high resource usage
+      if metrics["cpu_usage_percent"] > 80:
+          alerts.append(f"High CPU usage: {metrics['cpu_usage_percent']}%")
+
+      if metrics["memory_usage_percent"] > 75:
+          alerts.append(f"High memory usage: {metrics['memory_usage_percent']}%")
+
+      if metrics["disk_usage_percent"] > 85:
+          alerts.append(f"High disk usage: {metrics['disk_usage_percent']}%")
+
+      # Check for unhealthy services
+      for service, status in component_status.items():
+          if status["status"] == "unhealthy":
+              alerts.append(f"Service down: {service}")
+
+      if alerts:
+          print("   ⚠️  Active Alerts:")
+          for i, alert in enumerate(alerts, 1):
+              print(f"      {i}. {alert}")
+      else:
+          print("   ✅ No active alerts")
+
+  - id: "recommendation-engine"
+    source: |
+      # Generate recommendations
+      print("\n💡 Recommendations:")
+
+      recommendations = []
+
+      if metrics["cpu_usage_percent"] > 70:
+          recommendations.append("Consider scaling CPU resources")
+
+      if metrics["memory_usage_percent"] > 60:
+          recommendations.append("Monitor memory usage trends")
+
+      if metrics["disk_usage_percent"] > 80:
+          recommendations.append("Review disk cleanup policies")
+
+      if len([s for s in component_status.values() if s["status"] == "unhealthy"]) > 0:
+          recommendations.append("Investigate unhealthy services immediately")
+
+      # Add general recommendations
+      if not recommendations:
+          recommendations.append("System running optimally")
+          recommendations.append("Continue regular monitoring")
+
+      for i, rec in enumerate(recommendations, 1):
+          print(f"   {i}. {rec}")
+
+  - id: "health-report"
+    source: |
+      # Generate final health report
+      print("\n" + "="*60)
+      print("📋 HEALTH CHECK REPORT")
+      print("="*60)
+
+      print(f"🕐 Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
+      print(f"🏷️  Environment: {environment}")
+      print(f"📊 Overall Status: {overall_status}")
+      print()
+
+      print("🔧 Component Status:")
+      for service, status in component_status.items():
+          icon = "🟢" if status["status"] == "healthy" else "🔴"
+          print(f"   {icon} {service.title()}: {status['status']} ({status['response_time_ms']}ms)")
+
+      print("\n📈 Key Metrics:")
+      print(f"   💻 CPU Usage: {metrics['cpu_usage_percent']}%")
+      print(f"   🧠 Memory Usage: {metrics['memory_usage_percent']}%")
+      print(f"   💾 Disk Usage: {metrics['disk_usage_percent']}%")
+      print(f"   🔗 Active Connections: {metrics['active_connections']:,}")
+      print(f"   📊 Requests/Min: {metrics['requests_per_minute']:,}")
+
+      if alerts:
+          print(f"\n🚨 Active Alerts: {len(alerts)}")
+          for alert in alerts:
+              print(f"   • {alert}")
+      else:
+          print("\n✅ No Active Alerts")
+
+      print(f"\n💡 Recommendations: {len(recommendations)}")
+      for rec in recommendations:
+          print(f"   • {rec}")
+
+      print("\n" + "="*60)
+
+      # Summary for automation
+      health_score = 100 - (len(alerts) * 20) - (metrics["cpu_usage_percent"] * 0.5)
+      health_score = max(0, min(100, health_score))
+
+      print(f"🎯 Health Score: {health_score:.1f}/100")
+
+      if health_score >= 90:
+          print("🟢 System Status: EXCELLENT")
+      elif health_score >= 75:
+          print("🟡 System Status: GOOD")
+      elif health_score >= 50:
+          print("🟠 System Status: FAIR")
+      else:
+          print("🔴 System Status: POOR")
