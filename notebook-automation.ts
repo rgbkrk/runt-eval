@@ -142,16 +142,6 @@ class NotebookAutomation {
         }
       } else {
         console.log(`✅ Cell ${cell.id} completed in ${result.duration}ms`);
-
-        // Check queue cleanup status
-        const remainingEntries = this.store.query(
-          tables.executionQueue.select().where({ cellId: cell.id }),
-        );
-        if (remainingEntries.length > 1) {
-          console.log(
-            `   🧹 ${remainingEntries.length} queue entries remain for ${cell.id}`,
-          );
-        }
       }
 
       // Brief pause between cells
@@ -387,7 +377,7 @@ class NotebookAutomation {
               this.activeSubscriptions = this.activeSubscriptions.filter(
                 (sub) => sub !== completedSub && sub !== failedSub,
               );
-            } catch (error) {
+            } catch (_error) {
               // Ignore cleanup errors - store might be shutting down
             }
           }, 0);
@@ -521,7 +511,7 @@ class NotebookAutomation {
   /**
    * Ensure runtime sessions are available before execution
    */
-  private async ensureRuntimeAvailable(cellId: string): Promise<void> {
+  private async ensureRuntimeAvailable(_cellId: string): Promise<void> {
     const maxWait = 10000; // 10 seconds
     const startTime = Date.now();
 
@@ -532,15 +522,16 @@ class NotebookAutomation {
       const readySessions = runtimeSessions.filter((s) => s.status === "ready");
 
       if (readySessions.length > 0) {
-        console.log(`   🤖 Runtime session available for ${cellId}`);
         return;
       }
 
-      console.log(
-        `   ⏳ Waiting for runtime session... (${
-          Math.round((Date.now() - startTime) / 1000)
-        }s)`,
-      );
+      if (Date.now() - startTime > 3000) {
+        console.log(
+          `   ⏳ Waiting for runtime session... (${
+            Math.round((Date.now() - startTime) / 1000)
+          }s)`,
+        );
+      }
       await this.delay(1000);
     }
 
@@ -559,12 +550,12 @@ class NotebookAutomation {
             this.activeSubscriptions.forEach((unsubscribe) => {
               try {
                 unsubscribe();
-              } catch (error) {
+              } catch (_error) {
                 // Ignore individual cleanup errors
               }
             });
             this.activeSubscriptions = [];
-          } catch (error) {
+          } catch (_error) {
             // Ignore subscription cleanup errors
           }
           resolve();
