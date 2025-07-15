@@ -12,6 +12,7 @@ parameters:
   data_size: 100
   plot_style: "seaborn"
   random_seed: 42
+  delay: 10
 
 # Notebook cells - executed in sequence
 cells:
@@ -22,6 +23,12 @@ cells:
       import matplotlib.pyplot as plt
       print('Libraries imported successfully')
       print(f'Random seed: {random_seed}')
+
+  - id: "delay"
+    source: |
+      import time
+      time.sleep(delay)
+      print('Delay completed')
 
   - id: "data-generation"
     source: |
