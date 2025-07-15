@@ -353,6 +353,7 @@ class NotebookAutomation {
   /**
    * Wait for cell execution to complete by monitoring execution state reactively
    * Uses LiveStore reactive subscriptions for immediate response to state changes
+   * Also checks for error outputs to detect Python exceptions in automation mode
    */
   private waitForExecution(
     queueId: string,
@@ -423,9 +424,27 @@ class NotebookAutomation {
         {
           onUpdate: (entries: readonly ExecutionQueueData[]) => {
             if (entries.length > 0 && !isResolved) {
-              console.log(`   ✅ Execution completed for ${cellId}`);
-              cleanup();
-              resolve();
+              // Check for error outputs in automation mode
+              const errorOutputs = this.store!.query(
+                tables.outputs.select().where({
+                  cellId,
+                  outputType: "error",
+                }),
+              );
+
+              if (errorOutputs.length > 0) {
+                console.log(
+                  `   ❌ Execution completed with Python errors for ${cellId}`,
+                );
+                cleanup();
+                reject(
+                  new Error(`Python exception occurred in cell ${cellId}`),
+                );
+              } else {
+                console.log(`   ✅ Execution completed for ${cellId}`);
+                cleanup();
+                resolve();
+              }
             }
           },
         },
