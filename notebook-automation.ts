@@ -143,9 +143,6 @@ class NotebookAutomation {
       } else {
         console.log(`✅ Cell ${cell.id} completed in ${result.duration}ms`);
       }
-
-      // Brief pause between cells
-      await this.delay(500);
     }
 
     const totalDuration = Date.now() - startTime;
