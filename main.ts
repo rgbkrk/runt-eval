@@ -38,39 +38,51 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
   let automation: NotebookAutomation | undefined;
 
   try {
-    // Start pyodide runtime agent
-    console.log("🐍 Starting pyodide runtime agent...");
-    runtimeAgent = new PyodideRuntimeAgent();
+    // Start automation client and runtime agent in parallel
+    console.log(
+      "🚀 Starting automation client and runtime agent in parallel...",
+    );
 
-    // Start runtime agent in background (don't await keepAlive)
-    const _runtimePromise = (async () => {
-      try {
-        await runtimeAgent!.start();
-        console.log("✅ Runtime agent started");
-        await runtimeAgent!.keepAlive();
-      } catch (error) {
-        console.error(
-          "❌ Runtime agent error:",
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    })();
-
-    // Give runtime more time to initialize packages in CI
-    await new Promise((resolve) => setTimeout(resolve, 10000));
-
-    // Start automation client (reuse for both verification and main execution)
-    console.log("🤖 Starting automation client...");
+    // Start automation client immediately
     automation = new NotebookAutomation({
       notebookId,
       stopOnError: config.stopOnError ?? true,
       executionTimeout: config.executionTimeout ?? 60000,
     });
 
-    // Verify packages are ready before starting main automation
-    console.log("🔍 Verifying package availability...");
-    await verifyPackagesReady(automation);
-    console.log("✅ Essential packages verified");
+    // Start pyodide runtime agent in background
+    console.log("🐍 Starting pyodide runtime agent...");
+    runtimeAgent = new PyodideRuntimeAgent();
+
+    // Start both runtime agent and package verification in parallel
+    const [_runtimeResult] = await Promise.all([
+      (async () => {
+        try {
+          await runtimeAgent!.start();
+          console.log("✅ Runtime agent started");
+          // Keep alive runs in background
+          runtimeAgent!.keepAlive().catch((error) => {
+            console.error(
+              "❌ Runtime agent error:",
+              error instanceof Error ? error.message : String(error),
+            );
+          });
+        } catch (error) {
+          console.error(
+            "❌ Runtime agent startup failed:",
+            error instanceof Error ? error.message : String(error),
+          );
+          throw error;
+        }
+      })(),
+      (async () => {
+        // Give a moment for runtime to start before verification
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        console.log("🔍 Verifying package availability...");
+        await verifyPackagesReady(automation);
+        console.log("✅ Essential packages verified");
+      })(),
+    ]);
 
     // Load document
     const document = await NotebookAutomation.loadDocument(config.documentPath);
