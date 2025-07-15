@@ -1,10 +1,10 @@
 import { createRuntimeConfig } from "@runt/lib";
-import { createStorePromise } from "@livestore/livestore";
+import { createStorePromise, queryDb } from "@livestore/livestore";
 import { makeAdapter } from "@livestore/adapter-node";
 import { makeCfSync } from "@livestore/sync-cf";
 import { parse as parseYaml } from "@std/yaml";
-import type { CellType, Store } from "@runt/schema";
-import { events, schema } from "@runt/schema";
+import type { CellType, ExecutionQueueData, Store } from "@runt/schema";
+import { events, schema, tables } from "@runt/schema";
 
 // YAML notebook format - the canonical format
 interface NotebookDocument {
@@ -271,6 +271,9 @@ class NotebookAutomation {
       console.log(
         `✅ Initialized notebook with ${document.cells.length} cells`,
       );
+
+      // Brief delay to ensure cells are fully propagated through LiveStore
+      await this.delay(1000);
     } catch (error) {
       console.error(
         "❌ Failed to initialize notebook:",
@@ -296,6 +299,30 @@ class NotebookAutomation {
 
       console.log(`   📤 Submitting execution request for ${cellId}`);
 
+      // Verify cell exists before execution
+      const cell = this.store.query(
+        tables.cells.select().where({ id: cellId }),
+      )[0];
+      if (!cell) {
+        throw new Error(`Cell ${cellId} not found in store`);
+      }
+      console.log(
+        `   📋 Cell found in store: ${cellId}, source length: ${
+          cell.source?.length || 0
+        }`,
+      );
+
+      // Check available runtime sessions
+      const runtimeSessions = this.store.query(tables.runtimeSessions.select());
+      console.log(
+        `   🤖 Available runtime sessions: ${runtimeSessions.length}`,
+      );
+      runtimeSessions.forEach((session) => {
+        console.log(
+          `      - ${session.sessionId}: ${session.status} (${session.runtimeType})`,
+        );
+      });
+
       // Submit execution request
       const queueId = `${cellId}-${Date.now()}`;
       await this.store.commit(events.executionRequested({
@@ -305,10 +332,18 @@ class NotebookAutomation {
         requestedBy: "automation",
       }));
 
+      // Check if the queue entry was created
+      const queueEntry = this.store.query(
+        tables.executionQueue.select().where({ id: queueId }),
+      )[0];
+      console.log(
+        `   🔍 Queue entry created: ${queueEntry ? "Yes" : "No"}, Status: ${
+          queueEntry?.status || "N/A"
+        }`,
+      );
+
       // Wait for execution to complete
       await this.waitForExecution(queueId, cellId);
-
-      console.log(`   ✅ Execution completed for ${cellId}`);
 
       return {
         success: true,
@@ -333,11 +368,11 @@ class NotebookAutomation {
   }
 
   /**
-   * Wait for cell execution to complete by monitoring execution state
-   * Temporarily using simpler approach until schema is upgraded
+   * Wait for cell execution to complete by monitoring execution state reactively
+   * Uses LiveStore reactive subscriptions for immediate response to state changes
    */
   private waitForExecution(
-    _queueId: string,
+    queueId: string,
     cellId: string,
   ): Promise<void> {
     const timeout = this.config.executionTimeout || 60000;
@@ -348,28 +383,98 @@ class NotebookAutomation {
         return;
       }
 
-      // Set up timeout
       const timeoutId = setTimeout(() => {
+        console.log(`   ⏰ Execution timeout for ${cellId} after ${timeout}ms`);
+        // Check final state before timing out
+        const finalEntry = this.store.query(
+          tables.executionQueue.select().where({ id: queueId }),
+        )[0];
+        console.log(
+          `   📊 Final queue entry state: ${
+            finalEntry ? JSON.stringify(finalEntry) : "Not found"
+          }`,
+        );
+        completedSub();
+        failedSub();
         reject(new Error(`Execution timeout after ${timeout}ms`));
       }, timeout);
 
-      // Simple polling approach until we can upgrade schema
-      const checkExecution = () => {
-        try {
-          // For now, just wait a reasonable amount of time for execution
-          // This is a temporary solution until schema upgrade
-          setTimeout(() => {
-            clearTimeout(timeoutId);
-            console.log(`   ✅ Execution assumed completed for ${cellId}`);
-            resolve();
-          }, 2000); // 2 second delay for execution
-        } catch (error) {
-          clearTimeout(timeoutId);
-          reject(error);
-        }
-      };
+      // Create reactive query for this specific queue entry
+      const completedQuery$ = queryDb(
+        tables.executionQueue.select()
+          .where({
+            id: queueId,
+            status: "completed",
+          }),
+        {
+          label: `execution-completed-${queueId}`,
+          deps: [queueId],
+        },
+      );
 
-      checkExecution();
+      const failedQuery$ = queryDb(
+        tables.executionQueue.select()
+          .where({
+            id: queueId,
+            status: "failed",
+          }),
+        {
+          label: `execution-failed-${queueId}`,
+          deps: [queueId],
+        },
+      );
+
+      // Subscribe to completion
+      console.log(
+        `   👂 Setting up completion subscription for queue ID: ${queueId}`,
+      );
+      const completedSub = this.store.subscribe(
+        completedQuery$,
+        {
+          onUpdate: (entries: readonly ExecutionQueueData[]) => {
+            console.log(
+              `   🎯 Completion subscription triggered with ${entries.length} entries`,
+            );
+            if (entries.length > 0) {
+              console.log(
+                `   ✅ Found completed entry: ${
+                  entries[0].id
+                } for cell ${cellId}`,
+              );
+              clearTimeout(timeoutId);
+              completedSub();
+              failedSub();
+              console.log(`   ✅ Execution completed for ${cellId}`);
+              resolve();
+            }
+          },
+        },
+      );
+
+      // Subscribe to failures
+      console.log(
+        `   👂 Setting up failure subscription for queue ID: ${queueId}`,
+      );
+      const failedSub = this.store.subscribe(
+        failedQuery$,
+        {
+          onUpdate: (entries: readonly ExecutionQueueData[]) => {
+            console.log(
+              `   💥 Failure subscription triggered with ${entries.length} entries`,
+            );
+            if (entries.length > 0) {
+              console.log(
+                `   ❌ Found failed entry: ${entries[0].id} for cell ${cellId}`,
+              );
+              clearTimeout(timeoutId);
+              completedSub();
+              failedSub();
+              const entry = entries[0];
+              reject(new Error(`Execution failed for ${cellId}: ${entry.id}`));
+            }
+          },
+        },
+      );
     });
   }
 

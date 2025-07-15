@@ -50,10 +50,10 @@ cells:
 
 ### Reactive State
 
-The `waitForExecution` method uses a simplified 2-second coordination approach.
-This was implemented to work around schema version compatibility issues. When
-the schema is upgraded, this should be replaced with proper LiveStore reactive
-subscriptions.
+The `waitForExecution` method now uses proper LiveStore reactive subscriptions
+for immediate response to execution state changes. This provides true reactive
+coordination without arbitrary timeouts - the system responds instantly when
+cells complete or fail through LiveStore's event-sourcing framework.
 
 ### BroadcastChannel Warnings
 
@@ -77,13 +77,13 @@ deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-autom
 ## Development Notes
 
 - Uses `--unstable-broadcast-channel` flag for LiveStore coordination
-- Temporary execution tracking until schema upgrade
+- Reactive execution tracking via LiveStore subscriptions
 - All cells execute sequentially with parameter injection
 - Runtime agent handles Python execution via Pyodide
 
 ## Future Improvements
 
-1. Upgrade to latest @runt/schema version for proper reactive subscriptions
-2. Add support for cell-level timeout configuration
-3. Implement proper execution status tracking
-4. Add support for conditional cell execution
+1. Add support for cell-level timeout configuration
+2. Add support for conditional cell execution
+3. Implement parallel cell execution where dependencies allow
+4. Add retry mechanisms for failed executions

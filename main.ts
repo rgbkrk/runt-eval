@@ -153,7 +153,7 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
  */
 async function verifyPackagesReady(notebookId: string): Promise<void> {
   const testAutomation = new NotebookAutomation({
-    notebookId: `${notebookId}-test`,
+    notebookId: notebookId,
     stopOnError: true,
     executionTimeout: 30000,
   });
