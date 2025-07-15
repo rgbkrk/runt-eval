@@ -359,7 +359,6 @@ class NotebookAutomation {
     cellId: string,
   ): Promise<void> {
     const timeout = this.config.executionTimeout || 60000;
-
     return new Promise((resolve, reject) => {
       if (!this.store) {
         reject(new Error("Store not connected"));
@@ -460,8 +459,10 @@ class NotebookAutomation {
     for (const [key, value] of Object.entries(parameters)) {
       if (typeof value === "string") {
         lines.push(`${key} = "${value}"`);
-      } else if (typeof value === "number" || typeof value === "boolean") {
+      } else if (typeof value === "number") {
         lines.push(`${key} = ${value}`);
+      } else if (typeof value === "boolean") {
+        lines.push(`${key} = ${value ? "True" : "False"}`);
       } else {
         lines.push(`${key} = ${JSON.stringify(value)}`);
       }
