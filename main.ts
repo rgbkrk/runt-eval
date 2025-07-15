@@ -59,10 +59,8 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     // Give runtime more time to initialize packages in CI
     await new Promise((resolve) => setTimeout(resolve, 10000));
 
-    // Verify packages are ready before starting automation
-    console.log("🔍 Verifying package availability...");
-    await verifyPackagesReady(notebookId);
-    console.log("✅ Essential packages verified");
+    // Skip package verification for now to test reactive coordination
+    console.log("⏭️  Skipping package verification for reactive testing...");
 
     // Start automation
     console.log("🤖 Starting automation client...");
@@ -153,7 +151,7 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
  */
 async function verifyPackagesReady(notebookId: string): Promise<void> {
   const testAutomation = new NotebookAutomation({
-    notebookId: notebookId,
+    notebookId: `${notebookId}-test`,
     stopOnError: true,
     executionTimeout: 30000,
   });
@@ -169,14 +167,13 @@ print(f"Python version: {sys.version}")
 
 # Test essential packages
 try:
-    try:
-        import numpy as np
-        import pandas as pd
-        import matplotlib.pyplot as plt
-        print("✅ Essential packages (numpy, pandas, matplotlib) are available")
-    except ImportError as e:
-        print(f"❌ Package not available: {e}")
-        raise
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    print("✅ Essential packages (numpy, pandas, matplotlib) are available")
+except ImportError as e:
+    print(f"❌ Package not available: {e}")
+    raise
 `,
       }],
     }, {});

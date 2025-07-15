@@ -46,6 +46,7 @@ class NotebookAutomation {
   private notebookId: string;
   private store?: Store;
   private executionResults: ExecutionResult[] = [];
+  private activeSubscriptions: Array<() => void> = [];
 
   constructor(config: AutomationConfig = {}) {
     this.config = {
@@ -118,8 +119,10 @@ class NotebookAutomation {
     await this.initializeNotebook(document);
 
     // Execute cells sequentially
-    for (const cell of document.cells) {
-      console.log(`🔄 Executing cell: ${cell.id}`);
+    for (const [index, cell] of document.cells.entries()) {
+      console.log(
+        `🔄 Executing cell ${index + 1}/${document.cells.length}: ${cell.id}`,
+      );
       console.log(
         `   Source: ${cell.source.substring(0, 80)}${
           cell.source.length > 80 ? "..." : ""
@@ -139,6 +142,16 @@ class NotebookAutomation {
         }
       } else {
         console.log(`✅ Cell ${cell.id} completed in ${result.duration}ms`);
+
+        // Check queue cleanup status
+        const remainingEntries = this.store.query(
+          tables.executionQueue.select().where({ cellId: cell.id }),
+        );
+        if (remainingEntries.length > 1) {
+          console.log(
+            `   🧹 ${remainingEntries.length} queue entries remain for ${cell.id}`,
+          );
+        }
       }
 
       // Brief pause between cells
@@ -299,29 +312,16 @@ class NotebookAutomation {
 
       console.log(`   📤 Submitting execution request for ${cellId}`);
 
-      // Verify cell exists before execution
+      // Quick sanity checks
       const cell = this.store.query(
         tables.cells.select().where({ id: cellId }),
       )[0];
       if (!cell) {
         throw new Error(`Cell ${cellId} not found in store`);
       }
-      console.log(
-        `   📋 Cell found in store: ${cellId}, source length: ${
-          cell.source?.length || 0
-        }`,
-      );
 
-      // Check available runtime sessions
-      const runtimeSessions = this.store.query(tables.runtimeSessions.select());
-      console.log(
-        `   🤖 Available runtime sessions: ${runtimeSessions.length}`,
-      );
-      runtimeSessions.forEach((session) => {
-        console.log(
-          `      - ${session.sessionId}: ${session.status} (${session.runtimeType})`,
-        );
-      });
+      // Wait for runtime sessions to be available
+      await this.ensureRuntimeAvailable(cellId);
 
       // Submit execution request
       const queueId = `${cellId}-${Date.now()}`;
@@ -331,16 +331,6 @@ class NotebookAutomation {
         executionCount: this.executionResults.length + 1,
         requestedBy: "automation",
       }));
-
-      // Check if the queue entry was created
-      const queueEntry = this.store.query(
-        tables.executionQueue.select().where({ id: queueId }),
-      )[0];
-      console.log(
-        `   🔍 Queue entry created: ${queueEntry ? "Yes" : "No"}, Status: ${
-          queueEntry?.status || "N/A"
-        }`,
-      );
 
       // Wait for execution to complete
       await this.waitForExecution(queueId, cellId);
@@ -383,19 +373,30 @@ class NotebookAutomation {
         return;
       }
 
+      let isResolved = false;
+      const cleanup = () => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeoutId);
+          // Use setTimeout 0 to make unsubscribing async (LiveStore workaround)
+          setTimeout(() => {
+            try {
+              completedSub();
+              failedSub();
+              // Remove from active subscriptions
+              this.activeSubscriptions = this.activeSubscriptions.filter(
+                (sub) => sub !== completedSub && sub !== failedSub,
+              );
+            } catch (error) {
+              // Ignore cleanup errors - store might be shutting down
+            }
+          }, 0);
+        }
+      };
+
       const timeoutId = setTimeout(() => {
         console.log(`   ⏰ Execution timeout for ${cellId} after ${timeout}ms`);
-        // Check final state before timing out
-        const finalEntry = this.store.query(
-          tables.executionQueue.select().where({ id: queueId }),
-        )[0];
-        console.log(
-          `   📊 Final queue entry state: ${
-            finalEntry ? JSON.stringify(finalEntry) : "Not found"
-          }`,
-        );
-        completedSub();
-        failedSub();
+        cleanup();
         reject(new Error(`Execution timeout after ${timeout}ms`));
       }, timeout);
 
@@ -425,26 +426,13 @@ class NotebookAutomation {
       );
 
       // Subscribe to completion
-      console.log(
-        `   👂 Setting up completion subscription for queue ID: ${queueId}`,
-      );
       const completedSub = this.store.subscribe(
         completedQuery$,
         {
           onUpdate: (entries: readonly ExecutionQueueData[]) => {
-            console.log(
-              `   🎯 Completion subscription triggered with ${entries.length} entries`,
-            );
-            if (entries.length > 0) {
-              console.log(
-                `   ✅ Found completed entry: ${
-                  entries[0].id
-                } for cell ${cellId}`,
-              );
-              clearTimeout(timeoutId);
-              completedSub();
-              failedSub();
+            if (entries.length > 0 && !isResolved) {
               console.log(`   ✅ Execution completed for ${cellId}`);
+              cleanup();
               resolve();
             }
           },
@@ -452,29 +440,21 @@ class NotebookAutomation {
       );
 
       // Subscribe to failures
-      console.log(
-        `   👂 Setting up failure subscription for queue ID: ${queueId}`,
-      );
       const failedSub = this.store.subscribe(
         failedQuery$,
         {
           onUpdate: (entries: readonly ExecutionQueueData[]) => {
-            console.log(
-              `   💥 Failure subscription triggered with ${entries.length} entries`,
-            );
-            if (entries.length > 0) {
-              console.log(
-                `   ❌ Found failed entry: ${entries[0].id} for cell ${cellId}`,
-              );
-              clearTimeout(timeoutId);
-              completedSub();
-              failedSub();
+            if (entries.length > 0 && !isResolved) {
               const entry = entries[0];
+              cleanup();
               reject(new Error(`Execution failed for ${cellId}: ${entry.id}`));
             }
           },
         },
       );
+
+      // Store subscriptions for cleanup
+      this.activeSubscriptions.push(completedSub, failedSub);
     });
   }
 
@@ -539,9 +519,59 @@ class NotebookAutomation {
   }
 
   /**
+   * Ensure runtime sessions are available before execution
+   */
+  private async ensureRuntimeAvailable(cellId: string): Promise<void> {
+    const maxWait = 10000; // 10 seconds
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxWait) {
+      const runtimeSessions = this.store!.query(
+        tables.runtimeSessions.select(),
+      );
+      const readySessions = runtimeSessions.filter((s) => s.status === "ready");
+
+      if (readySessions.length > 0) {
+        console.log(`   🤖 Runtime session available for ${cellId}`);
+        return;
+      }
+
+      console.log(
+        `   ⏳ Waiting for runtime session... (${
+          Math.round((Date.now() - startTime) / 1000)
+        }s)`,
+      );
+      await this.delay(1000);
+    }
+
+    throw new Error(`No runtime sessions became available within ${maxWait}ms`);
+  }
+
+  /**
    * Cleanup resources
    */
   async cleanup(): Promise<void> {
+    // Clean up any remaining subscriptions with async workaround
+    if (this.activeSubscriptions.length > 0) {
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          try {
+            this.activeSubscriptions.forEach((unsubscribe) => {
+              try {
+                unsubscribe();
+              } catch (error) {
+                // Ignore individual cleanup errors
+              }
+            });
+            this.activeSubscriptions = [];
+          } catch (error) {
+            // Ignore subscription cleanup errors
+          }
+          resolve();
+        }, 0);
+      });
+    }
+
     if (this.store) {
       console.log("🧹 Cleaning up LiveStore connection");
       await this.store.shutdown();
