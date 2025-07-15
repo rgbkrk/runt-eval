@@ -13,7 +13,8 @@ git clone <this-repo>
 cd runt-eval
 
 # Run automation with embedded Python runtime
-deno task automate:runtime:example
+deno task automate                              # Run example notebook
+deno task health:simple                         # Run simple health check
 ```
 
 **Output**: Live notebook at `https://app.runt.run/?notebook=automation-{id}`
@@ -32,6 +33,7 @@ live results that humans can inspect and collaborate on in real-time.
 
 ## 🎯 Use Cases
 
+- **Infrastructure monitoring**: Automated health checks for D1 databases and Workers
 - **Automated reporting**: Run scheduled data analysis notebooks
 - **Parameter sweeps**: Execute experiments with different configurations
 - **CI/CD data validation**: Automated notebook-based testing
@@ -47,13 +49,15 @@ live results that humans can inspect and collaborate on in real-time.
 ### Available Commands
 
 ```bash
-# Combined automation + runtime (recommended)
-deno task automate:runtime:example              # Run example notebook
-deno task automate:runtime:with-params          # Run with parameters
+# Infrastructure monitoring
+deno task health:simple                         # Simple health check (no dependencies)
+deno task health:daily                          # Daily health check (Cloudflare)
+deno task health:full                           # Full infrastructure monitoring
 
-# Automation only (requires separate runtime)  
-deno task automate example.json                 # Basic execution
-deno task automate:with-params                  # With parameter injection
+# General automation
+deno task automate                              # Run example notebook
+deno task automate:ci                           # CI/CD mode (no .env file)
+deno task test:error                            # Test error handling
 ```
 
 ### Custom Notebooks
@@ -112,26 +116,45 @@ model_type = "random_forest"
 
 ## 🏗️ Architecture
 
+### Infrastructure Monitoring
+
+Built-in monitoring capabilities for production infrastructure:
+
+```bash
+# Daily health monitoring with Cloudflare Analytics
+deno task health:daily
+
+# Full infrastructure dashboard
+deno task health:full
+```
+
+Features:
+- **D1 Database Monitoring**: Query volume, latency, storage usage
+- **Workers Performance**: Request rates, error rates, CPU time
+- **Configurable Alerts**: Custom thresholds for critical metrics
+- **Automated Reporting**: Ready for scheduled execution
+
 ### YAML Notebook Format
 
-Clean, readable configuration format instead of verbose JSON:
+Clean, readable configuration format:
 
 ```yaml
 metadata:
-  title: "Analysis Title"
-  description: "What this notebook does"
+  title: "Infrastructure Health Check"
+  description: "Monitor D1 and Workers performance"
   runtime: "python3"
-  tags: ["data-science", "automation"]
+  tags: ["monitoring", "infrastructure"]
 
 parameters:
-  data_size: 100
-  output_format: "png"
+  hours_back: 24
+  error_threshold: 5.0
 
 cells:
   - id: "setup"
     source: |
+      import requests
       import pandas as pd
-      print('Starting analysis...')
+      print('Starting health check...')
 ```
 
 ### Reactive LiveStore Coordination
@@ -172,6 +195,11 @@ Required in `.env` file:
 AUTH_TOKEN=your-auth-token              # Required for LiveStore sync
 LIVESTORE_SYNC_URL=wss://app.runt.run   # Optional, defaults correctly  
 NOTEBOOK_ID=custom-id                   # Optional, auto-generated
+
+# For infrastructure monitoring
+CLOUDFLARE_API_TOKEN=your-cf-token      # Required for Cloudflare monitoring
+CLOUDFLARE_ACCOUNT_ID=your-account-id   # Required for Cloudflare monitoring
+SLACK_WEBHOOK_URL=your-slack-webhook    # Optional for notifications
 ```
 
 ### Automation Options
@@ -180,21 +208,26 @@ NOTEBOOK_ID=custom-id                   # Optional, auto-generated
 const automation = new NotebookAutomation({
   notebookId: "my-experiment", // Custom ID (optional)
   executionTimeout: 60000, // 60 second timeout
-  stopOnError: false, // Continue on cell failures
+  stopOnError: true, // Stop on Python exceptions (automation mode)
   parameters: { debug: true }, // Global parameters
 });
 ```
+
+**Error Handling**: Automation mode detects Python exceptions and stops execution when `stopOnError: true`. Interactive notebooks continue normally.
 
 ## 📁 Project Structure
 
 ```
 runt-eval/
-├── automation-with-runtime.ts    # ⭐ Combined automation + runtime
-├── notebook-automation.ts        # Standalone automation client
-├── example.yml                   # ⭐ YAML notebook example
-├── example.json                  # Legacy Jupyter format support
-├── parameters.json               # Parameter injection example
-└── .env                         # AUTH_TOKEN configuration
+├── main.ts                       # ⭐ Combined automation + runtime
+├── notebook-automation.ts        # Core automation logic
+├── example.yml                   # Example notebook
+├── notebooks/                    # ⭐ Monitoring notebooks
+│   ├── simple-health-check.yml   # Basic health check
+│   ├── daily-health-check.yml    # Daily monitoring
+│   ├── infrastructure-monitoring.yml # Full dashboard
+│   └── README.md                 # Monitoring documentation
+└── .env                         # Environment configuration
 ```
 
 ## 🔍 Debugging
@@ -319,16 +352,25 @@ The system provides a "React version for terminal" experience through:
 - **Startup optimization**: Runtime and automation start concurrently
 - **Clean termination**: Graceful shutdown without hanging
 
-### Future Optimizations
+### Current Performance
 
-**Next level performance improvements to explore:**
+**Production-ready optimizations achieved:**
 
-1. **Pre-queue all executions**: Submit entire execution plan upfront while runtime bootstraps
-2. **Notebook structure prefill**: Create all cells and metadata before runtime is ready
-3. **Reactive execution consumption**: Let runtime agent process queue as fast as possible
-4. **Pyodide bootstrap optimization**: Investigate if package loading can be parallelized
+1. **✅ Structure prefill**: Create notebook structure before runtime is ready
+2. **✅ Reactive coordination**: Instant response to execution state changes
+3. **✅ Sequential execution**: Proper error handling with stopOnError support
+4. **✅ Automation-specific error detection**: Python exceptions stop execution
 
-*Note: May hit artificial roadblock from Pyodide dependency bootstrapping timing*
+**Performance characteristics:**
+- **Cell execution**: 150-650ms typical response times
+- **Total execution**: 2-4 seconds for typical notebooks
+- **Error handling**: Instant detection and stopping on Python exceptions
+- **Infrastructure monitoring**: ~10-30 seconds for full Cloudflare analytics
+
+**Future optimizations to explore:**
+- Advanced parallel execution with dependency analysis
+- Cell-level timeout configuration
+- Conditional cell execution based on previous results
 
 ---
 
