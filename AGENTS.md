@@ -4,14 +4,14 @@
 
 This is a Deno-based notebook automation system that executes YAML-formatted
 notebooks through **reactive LiveStore coordination** with runtime agents. It's designed for
-CI/CD pipelines, automated testing, infrastructure monitoring, and provides a "React version for terminal" experience with instant response times through LiveStore's event-sourcing framework.
+CI/CD pipelines, automated testing, and provides a "React version for terminal" experience with instant response times through LiveStore's event-sourcing framework.
 
 ## Architecture
 
 - **main.ts**: Entry point with parallel startup optimization for automation client and pyodide runtime agent
 - **notebook-automation.ts**: Core automation logic with reactive LiveStore coordination and automation-specific error detection
-- **notebooks/**: Infrastructure monitoring templates for D1 databases and Workers
-- **example.yml**: Sample notebook demonstrating the YAML format
+- **notebooks/**: Notebook templates including examples and health checks
+- **notebooks/example.yml**: Sample notebook demonstrating the YAML format
 - **Reactive coordination**: True event-driven execution with instant response to state changes
 
 ## Key Technical Details
@@ -93,7 +93,7 @@ Should rarely be hit due to reactive coordination.
 deno task automate:ci
 
 # Run standalone automation (requires separate runtime)
-deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts example.yml
+deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-automation.ts notebooks/example.yml
 ```
 
 ## Development Notes
@@ -120,7 +120,7 @@ deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-autom
 - ✅ Clean process termination
 - ✅ **Structure Prefill**: Create complete notebook structure before runtime is ready
 - ✅ **Automation-Specific Error Detection**: Python exceptions stop execution in automation mode
-- ✅ **Infrastructure Monitoring**: Comprehensive monitoring templates for D1 and Workers
+- ✅ **Simple Health Monitoring**: Basic system health checks without external dependencies
 
 **Advanced Performance Improvements Achieved:**
 
@@ -134,16 +134,16 @@ deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-autom
    - Stops execution in automation mode while preserving interactive notebook behavior
    - **Result**: Reliable automation workflows with proper error handling
 
-3. **✅ Infrastructure Monitoring**: 
-   - Built-in monitoring templates for Cloudflare D1 databases and Workers
-   - Configurable alert thresholds and health scoring
-   - **Result**: Production-ready meta automation for infrastructure monitoring
+3. **✅ Simple Health Monitoring**: 
+   - Basic system health checks with no external dependencies
+   - Mock performance metrics and alert simulation
+   - **Result**: Template for building custom monitoring solutions
 
 **Performance Summary:**
 - **Cell execution**: 150-650ms typical response times
 - **Total execution**: 2-4 seconds for typical notebooks
 - **Error handling**: Instant detection and stopping on Python exceptions
-- **Infrastructure monitoring**: 10-30 seconds for full Cloudflare analytics
+- **Health monitoring**: 2-5 seconds for basic system checks
 
 **Future Optimizations to Explore:**
 
@@ -153,47 +153,37 @@ deno run --env-file=.env --allow-all --unstable-broadcast-channel notebook-autom
 4. **Retry mechanisms** for failed executions
 5. **Single LiveStore connection** across runtime agent and automation client
 
-## Infrastructure Monitoring
+## Simple Health Monitoring
 
 ### Built-in Monitoring Capabilities
 
-The system includes comprehensive monitoring templates:
+The system includes basic monitoring templates:
 
 - **`simple-health-check.yml`**: Basic health monitoring with no external dependencies
-- **`daily-health-check.yml`**: Daily monitoring with Cloudflare Analytics integration
-- **`infrastructure-monitoring.yml`**: Full dashboard with D1 and Workers analytics
+- **`error-test.yml`**: Error handling validation
 
 ### Monitoring Features
 
-**D1 Database Monitoring:**
-- Query volume (read/write operations)
-- Query latency and performance metrics
-- Storage usage and growth trends
-- Database-specific health scoring
-
-**Workers Performance:**
-- Request rates and error rates
-- CPU time metrics (P50, P99)
-- Script-level performance analysis
-- Alert thresholds for critical metrics
+**Mock System Health:**
+- Simulated component status checks
+- Performance metrics simulation
+- Alert detection and recommendations
+- Health scoring algorithm
 
 **Automation Integration:**
-- Configurable alert thresholds
-- Slack webhook notifications
-- Scheduled execution ready
-- Real-time health scoring
+- No external dependencies required
+- Configurable thresholds and parameters
+- Ready for scheduled execution
+- Template for building custom monitoring
 
 ### Usage
 
 ```bash
-# Daily health monitoring
-deno task health:daily
-
-# Full infrastructure dashboard
-deno task health:full
-
 # Simple health check (no dependencies)
 deno task health:simple
+
+# Test error handling
+deno task test:error
 ```
 
 ## Error Handling
@@ -296,15 +286,15 @@ internal subscription cleanup timing issues.
 3. **Error detection**: Automation-specific Python exception handling
 4. **Sequential reliability**: Maintains execution order with proper error handling
 
-**Infrastructure Monitoring Performance**:
-- **Simple health check**: 2-4 seconds (no external dependencies)
-- **Daily monitoring**: 10-15 seconds (Cloudflare API calls)
-- **Full dashboard**: 30-45 seconds (comprehensive analytics)
+**Health Monitoring Performance**:
+- **Simple health check**: 2-5 seconds (no external dependencies)
+- **Error handling tests**: 3-5 seconds (validates stopOnError behavior)
+- **Mock system checks**: Fast simulation without external API calls
 
 **Remaining Constraints**:
 - **Pyodide bootstrap**: Still ~2-3 seconds for Python runtime + package imports
 - **Computational cells**: Individual cell complexity (visualization takes longest)
 - **Sequential execution**: Maintains notebook order for reliability
-- **External APIs**: Cloudflare Analytics queries add latency for monitoring
+- **External APIs**: Future enhancement for real infrastructure monitoring
 
-**Architecture achieved production-ready performance** with reliable error handling and comprehensive monitoring capabilities.
+**Architecture achieved production-ready performance** with reliable error handling and basic monitoring capabilities.

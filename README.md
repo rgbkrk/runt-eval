@@ -33,11 +33,11 @@ live results that humans can inspect and collaborate on in real-time.
 
 ## 🎯 Use Cases
 
-- **Infrastructure monitoring**: Automated health checks for D1 databases and Workers
 - **Automated reporting**: Run scheduled data analysis notebooks
 - **Parameter sweeps**: Execute experiments with different configurations
 - **CI/CD data validation**: Automated notebook-based testing
 - **Collaborative automation**: Share live results with team members
+- **System monitoring**: Basic health checks and status reporting
 
 ## 📋 Prerequisites
 
@@ -49,14 +49,14 @@ live results that humans can inspect and collaborate on in real-time.
 ### Available Commands
 
 ```bash
-# Infrastructure monitoring
-deno task health:simple                         # Simple health check (no dependencies)
-deno task health:daily                          # Daily health check (Cloudflare)
-deno task health:full                           # Full infrastructure monitoring
-
 # General automation
 deno task automate                              # Run example notebook
 deno task automate:ci                           # CI/CD mode (no .env file)
+
+# Health monitoring
+deno task health:simple                         # Simple health check (no dependencies)
+
+# Testing
 deno task test:error                            # Test error handling
 ```
 
@@ -116,45 +116,27 @@ model_type = "random_forest"
 
 ## 🏗️ Architecture
 
-### Infrastructure Monitoring
-
-Built-in monitoring capabilities for production infrastructure:
-
-```bash
-# Daily health monitoring with Cloudflare Analytics
-deno task health:daily
-
-# Full infrastructure dashboard
-deno task health:full
-```
-
-Features:
-- **D1 Database Monitoring**: Query volume, latency, storage usage
-- **Workers Performance**: Request rates, error rates, CPU time
-- **Configurable Alerts**: Custom thresholds for critical metrics
-- **Automated Reporting**: Ready for scheduled execution
-
 ### YAML Notebook Format
 
 Clean, readable configuration format:
 
 ```yaml
 metadata:
-  title: "Infrastructure Health Check"
-  description: "Monitor D1 and Workers performance"
+  title: "Data Analysis"
+  description: "Process and analyze data"
   runtime: "python3"
-  tags: ["monitoring", "infrastructure"]
+  tags: ["data-science", "analysis"]
 
 parameters:
-  hours_back: 24
-  error_threshold: 5.0
+  data_size: 1000
+  debug_mode: true
 
 cells:
   - id: "setup"
     source: |
-      import requests
       import pandas as pd
-      print('Starting health check...')
+      import numpy as np
+      print('Starting analysis...')
 ```
 
 ### Reactive LiveStore Coordination
@@ -195,11 +177,6 @@ Required in `.env` file:
 AUTH_TOKEN=your-auth-token              # Required for LiveStore sync
 LIVESTORE_SYNC_URL=wss://app.runt.run   # Optional, defaults correctly  
 NOTEBOOK_ID=custom-id                   # Optional, auto-generated
-
-# For infrastructure monitoring
-CLOUDFLARE_API_TOKEN=your-cf-token      # Required for Cloudflare monitoring
-CLOUDFLARE_ACCOUNT_ID=your-account-id   # Required for Cloudflare monitoring
-SLACK_WEBHOOK_URL=your-slack-webhook    # Optional for notifications
 ```
 
 ### Automation Options
@@ -221,12 +198,11 @@ const automation = new NotebookAutomation({
 runt-eval/
 ├── main.ts                       # ⭐ Combined automation + runtime
 ├── notebook-automation.ts        # Core automation logic
-├── example.yml                   # Example notebook
-├── notebooks/                    # ⭐ Monitoring notebooks
+├── notebooks/                    # ⭐ Notebook templates
+│   ├── example.yml               # Example notebook
 │   ├── simple-health-check.yml   # Basic health check
-│   ├── daily-health-check.yml    # Daily monitoring
-│   ├── infrastructure-monitoring.yml # Full dashboard
-│   └── README.md                 # Monitoring documentation
+│   ├── error-test.yml            # Error handling test
+│   └── README.md                 # Notebook documentation
 └── .env                         # Environment configuration
 ```
 
@@ -365,12 +341,13 @@ The system provides a "React version for terminal" experience through:
 - **Cell execution**: 150-650ms typical response times
 - **Total execution**: 2-4 seconds for typical notebooks
 - **Error handling**: Instant detection and stopping on Python exceptions
-- **Infrastructure monitoring**: ~10-30 seconds for full Cloudflare analytics
+- **Health monitoring**: ~2-5 seconds for basic system checks
 
 **Future optimizations to explore:**
 - Advanced parallel execution with dependency analysis
 - Cell-level timeout configuration
 - Conditional cell execution based on previous results
+- Secure environment variable injection for external API integration
 
 ---
 

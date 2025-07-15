@@ -1,10 +1,8 @@
 {
   "tasks": {
-    "automate": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts example.yml",
-    "automate:ci": "deno run --allow-all --unstable-broadcast-channel main.ts example.yml",
+    "automate": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/example.yml",
+    "automate:ci": "deno run --allow-all --unstable-broadcast-channel main.ts notebooks/example.yml",
     "health:simple": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/simple-health-check.yml",
-    "health:daily": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/daily-health-check.yml",
-    "health:full": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/infrastructure-monitoring.yml",
     "test:error": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/error-test.yml"
   },
   "imports": {
