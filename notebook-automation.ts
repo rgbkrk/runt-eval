@@ -115,33 +115,26 @@ class NotebookAutomation {
     // Connect to LiveStore as a client
     await this.connectToLiveStore();
 
-    // Initialize the notebook in LiveStore
-    await this.initializeNotebook(document);
+    // Initialize the notebook and pre-queue all executions
+    const queueIds = await this.initializeNotebook(document);
 
-    // Execute cells sequentially
-    for (const [index, cell] of document.cells.entries()) {
-      console.log(
-        `🔄 Executing cell ${index + 1}/${document.cells.length}: ${cell.id}`,
-      );
-      console.log(
-        `   Source: ${cell.source.substring(0, 80)}${
-          cell.source.length > 80 ? "..." : ""
-        }`,
-      );
+    console.log(
+      "⚡ Pre-queued all executions - runtime will process as fast as possible",
+    );
 
-      const result = await this.executeCell(cell);
-      this.executionResults.push(result);
+    // Wait for all executions to complete in parallel
+    const results = await this.waitForAllExecutions(queueIds, document.cells);
+    this.executionResults = results;
 
+    // Check for failures
+    for (const result of results) {
       if (!result.success) {
-        failedCells.push(cell.id);
-        console.error(`❌ Cell ${cell.id} failed: ${result.error}`);
-
-        if (this.config.stopOnError) {
-          console.log("🛑 Stopping execution due to error");
-          break;
-        }
+        failedCells.push(result.cellId);
+        console.error(`❌ Cell ${result.cellId} failed: ${result.error}`);
       } else {
-        console.log(`✅ Cell ${cell.id} completed in ${result.duration}ms`);
+        console.log(
+          `✅ Cell ${result.cellId} completed in ${result.duration}ms`,
+        );
       }
     }
 
@@ -236,7 +229,9 @@ class NotebookAutomation {
   /**
    * Initialize the notebook in LiveStore
    */
-  private async initializeNotebook(document: NotebookDocument): Promise<void> {
+  private async initializeNotebook(
+    document: NotebookDocument,
+  ): Promise<string[]> {
     try {
       console.log("📝 Initializing notebook in LiveStore...");
 
@@ -274,6 +269,32 @@ class NotebookAutomation {
 
       // Brief delay to ensure cells are fully propagated through LiveStore
       await this.delay(1000);
+
+      // Wait for runtime to be available
+      await this.ensureRuntimeAvailable("pre-queue-check");
+
+      // Pre-queue all execution requests
+      const queueIds: string[] = [];
+      console.log("🚀 Pre-queuing all execution requests...");
+
+      for (const [index, cell] of document.cells.entries()) {
+        const queueId = `${cell.id}-${Date.now()}-${index}`;
+        queueIds.push(queueId);
+
+        console.log(
+          `   📤 Queuing ${cell.id} (${index + 1}/${document.cells.length})`,
+        );
+
+        this.store.commit(events.executionRequested({
+          queueId,
+          cellId: cell.id,
+          executionCount: index + 1,
+          requestedBy: "automation",
+        }));
+      }
+
+      console.log(`⚡ Pre-queued ${queueIds.length} executions`);
+      return queueIds;
     } catch (error) {
       console.error(
         "❌ Failed to initialize notebook:",
@@ -569,6 +590,49 @@ class NotebookAutomation {
   /**
    * Utility delay function
    */
+  private async waitForAllExecutions(
+    queueIds: string[],
+    cells: { id: string; source: string }[],
+  ): Promise<ExecutionResult[]> {
+    const results: ExecutionResult[] = [];
+    const startTime = Date.now();
+
+    console.log(`⏱️  Waiting for ${queueIds.length} executions to complete...`);
+
+    // Wait for each execution in parallel
+    const executionPromises = queueIds.map(async (queueId, index) => {
+      const cellId = cells[index].id;
+      const cellStartTime = Date.now();
+
+      try {
+        await this.waitForExecution(queueId, cellId);
+        return {
+          success: true,
+          cellId,
+          queueId,
+          duration: Date.now() - cellStartTime,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          cellId,
+          queueId,
+          duration: Date.now() - cellStartTime,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    // Wait for all executions to complete
+    const completedResults = await Promise.all(executionPromises);
+    results.push(...completedResults);
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`⚡ All executions completed in ${totalDuration}ms`);
+
+    return results;
+  }
+
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
