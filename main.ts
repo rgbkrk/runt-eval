@@ -54,35 +54,27 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     console.log("🐍 Starting pyodide runtime agent...");
     runtimeAgent = new PyodideRuntimeAgent();
 
-    // Start both runtime agent and package verification in parallel
-    const [_runtimeResult] = await Promise.all([
-      (async () => {
-        try {
-          await runtimeAgent!.start();
-          console.log("✅ Runtime agent started");
-          // Keep alive runs in background
-          runtimeAgent!.keepAlive().catch((error) => {
-            console.error(
-              "❌ Runtime agent error:",
-              error instanceof Error ? error.message : String(error),
-            );
-          });
-        } catch (error) {
-          console.error(
-            "❌ Runtime agent startup failed:",
-            error instanceof Error ? error.message : String(error),
-          );
-          throw error;
-        }
-      })(),
-      (async () => {
-        // Give a moment for runtime to start before verification
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        console.log("🔍 Verifying package availability...");
-        await verifyPackagesReady(automation);
-        console.log("✅ Essential packages verified");
-      })(),
-    ]);
+    // Start runtime agent
+    try {
+      await runtimeAgent.start();
+      console.log("✅ Runtime agent started");
+      // Keep alive runs in background
+      runtimeAgent.keepAlive().catch((error) => {
+        console.error(
+          "❌ Runtime agent error:",
+          error instanceof Error ? error.message : String(error),
+        );
+      });
+    } catch (error) {
+      console.error(
+        "❌ Runtime agent startup failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+
+    // Brief delay to let runtime initialize
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Load document
     const document = await NotebookAutomation.loadDocument(config.documentPath);
@@ -162,41 +154,6 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     setTimeout(() => {
       Deno.exit(0);
     }, 100);
-  }
-}
-
-/**
- * Verify essential packages are available using existing automation instance
- */
-async function verifyPackagesReady(
-  automation: NotebookAutomation,
-): Promise<void> {
-  await automation.executeDocument({
-    metadata: { title: "Package Test" },
-    cells: [{
-      id: "package-test",
-      source: `
-import sys
-print(f"Python version: {sys.version}")
-
-# Test essential packages
-try:
-    import numpy as np
-    import pandas as pd
-    import matplotlib.pyplot as plt
-    print("✅ Essential packages (numpy, pandas, matplotlib) are available")
-except ImportError as e:
-    print(f"❌ Package not available: {e}")
-    raise
-`,
-    }],
-  }, {});
-
-  const summary = automation.getExecutionSummary();
-  if (!summary.success) {
-    throw new Error(
-      `Package verification failed: ${summary.failedCells.join(", ")}`,
-    );
   }
 }
 

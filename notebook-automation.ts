@@ -115,8 +115,11 @@ class NotebookAutomation {
     // Connect to LiveStore as a client
     await this.connectToLiveStore();
 
-    // Initialize the notebook and pre-queue all executions
-    const queueIds = await this.initializeNotebook(document);
+    // Prefill complete notebook structure immediately
+    await this.prefillNotebookStructure(document);
+
+    // Pre-queue all executions (runtime will process when ready)
+    const queueIds = await this.preQueueAllExecutions(document);
 
     console.log(
       "⚡ Pre-queued all executions - runtime will process as fast as possible",
@@ -227,13 +230,13 @@ class NotebookAutomation {
   }
 
   /**
-   * Initialize the notebook in LiveStore
+   * Prefill complete notebook structure immediately
    */
-  private async initializeNotebook(
+  private async prefillNotebookStructure(
     document: NotebookDocument,
-  ): Promise<string[]> {
+  ): Promise<void> {
     try {
-      console.log("📝 Initializing notebook in LiveStore...");
+      console.log("🏗️  Prefilling notebook structure...");
 
       if (!this.store) {
         throw new Error("Store not connected");
@@ -264,18 +267,39 @@ class NotebookAutomation {
       }
 
       console.log(
-        `✅ Initialized notebook with ${document.cells.length} cells`,
+        `✅ Prefilled notebook structure with ${document.cells.length} cells`,
       );
 
       // Brief delay to ensure cells are fully propagated through LiveStore
-      await this.delay(1000);
+      await this.delay(500);
+    } catch (error) {
+      console.error(
+        "❌ Failed to prefill notebook structure:",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Pre-queue all execution requests (runtime processes when ready)
+   */
+  private async preQueueAllExecutions(
+    document: NotebookDocument,
+  ): Promise<string[]> {
+    try {
+      console.log("🚀 Pre-queuing execution requests...");
+
+      if (!this.store) {
+        throw new Error("Store not connected");
+      }
 
       // Wait for runtime to be available
       await this.ensureRuntimeAvailable("pre-queue-check");
 
       // Pre-queue all execution requests
       const queueIds: string[] = [];
-      console.log("🚀 Pre-queuing all execution requests...");
+      console.log("📋 Queueing all executions for parallel processing...");
 
       for (const [index, cell] of document.cells.entries()) {
         const queueId = `${cell.id}-${Date.now()}-${index}`;
@@ -297,7 +321,7 @@ class NotebookAutomation {
       return queueIds;
     } catch (error) {
       console.error(
-        "❌ Failed to initialize notebook:",
+        "❌ Failed to pre-queue executions:",
         error instanceof Error ? error.message : String(error),
       );
       throw error;
