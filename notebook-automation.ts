@@ -1,7 +1,7 @@
 import { createRuntimeConfig } from "@runt/lib";
-import { createStorePromise } from "npm:@livestore/livestore";
-import { makeAdapter } from "npm:@livestore/adapter-node";
-import { makeCfSync } from "npm:@livestore/sync-cf";
+import { createStorePromise } from "@livestore/livestore";
+import { makeAdapter } from "@livestore/adapter-node";
+import { makeCfSync } from "@livestore/sync-cf";
 import { parse as parseYaml } from "@std/yaml";
 import type { CellType, Store } from "@runt/schema";
 import { events, schema } from "@runt/schema";
