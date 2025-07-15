@@ -245,7 +245,7 @@ class NotebookAutomation {
       }
 
       // Initialize the notebook
-      await this.store.commit(events.notebookInitialized({
+      this.store.commit(events.notebookInitialized({
         id: this.notebookId,
         title: `Automation Run ${new Date().toISOString()}`,
         ownerId: "automation",
@@ -253,7 +253,7 @@ class NotebookAutomation {
 
       // Add all cells to the notebook
       for (const cell of document.cells) {
-        await this.store.commit(events.cellCreated({
+        this.store.commit(events.cellCreated({
           id: cell.id,
           cellType: "code" as CellType,
           position: document.cells.indexOf(cell),
@@ -261,7 +261,7 @@ class NotebookAutomation {
         }));
 
         // Set the cell source
-        await this.store.commit(events.cellSourceChanged({
+        this.store.commit(events.cellSourceChanged({
           id: cell.id,
           source: cell.source,
           modifiedBy: "automation",
@@ -312,7 +312,7 @@ class NotebookAutomation {
 
       // Submit execution request
       const queueId = `${cellId}-${Date.now()}`;
-      await this.store.commit(events.executionRequested({
+      this.store.commit(events.executionRequested({
         queueId,
         cellId,
         executionCount: this.executionResults.length + 1,
