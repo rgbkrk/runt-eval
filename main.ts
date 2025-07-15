@@ -59,8 +59,10 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     // Give runtime more time to initialize packages in CI
     await new Promise((resolve) => setTimeout(resolve, 10000));
 
-    // Skip package verification for now to test reactive coordination
-    console.log("⏭️  Skipping package verification for reactive testing...");
+    // Verify packages are ready before starting automation
+    console.log("🔍 Verifying package availability...");
+    await verifyPackagesReady(notebookId);
+    console.log("✅ Essential packages verified");
 
     // Start automation
     console.log("🤖 Starting automation client...");
