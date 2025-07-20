@@ -235,7 +235,11 @@ class NotebookAutomation {
         schema,
         adapter,
         storeId: this.notebookId,
-        syncPayload: { authToken },
+        syncPayload: {
+          authToken,
+          runtime: true,
+          clientId: "automation-client",
+        },
       });
 
       console.log("✅ Connected to LiveStore");
