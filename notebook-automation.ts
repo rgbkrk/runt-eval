@@ -243,6 +243,20 @@ class NotebookAutomation {
       });
 
       console.log("✅ Connected to LiveStore");
+
+      // Announce presence for automation client
+      console.log("📍 Announcing automation client presence...");
+      try {
+        this.store.commit(
+          events.presenceSet({
+            userId: "automation-client",
+            cellId: undefined, // Automation client doesn't focus on specific cells
+          }),
+        );
+        console.log("✅ Automation client presence announced");
+      } catch (error) {
+        console.error("❌ Failed to announce automation presence:", error);
+      }
     } catch (error) {
       console.error(
         "❌ Failed to connect to LiveStore:",
