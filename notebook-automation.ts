@@ -292,14 +292,14 @@ class NotebookAutomation {
           id: cell.id,
           cellType: "code" as CellType,
           position: document.cells.indexOf(cell),
-          createdBy: "automation",
+          createdBy: "automation-client",
         }));
 
         // Set the cell source
         this.store.commit(events.cellSourceChanged({
           id: cell.id,
           source: cell.source,
-          modifiedBy: "automation",
+          modifiedBy: "automation-client",
         }));
       }
 
