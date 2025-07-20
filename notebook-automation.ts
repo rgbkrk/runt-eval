@@ -1,10 +1,21 @@
 import { createRuntimeConfig } from "@runt/lib";
-import { createStorePromise, queryDb } from "@livestore/livestore";
+import {
+  createStorePromise,
+  makeSchema,
+  queryDb,
+  State,
+  Store as LiveStore,
+} from "@livestore/livestore";
 import { makeAdapter } from "@livestore/adapter-node";
 import { makeCfSync } from "@livestore/sync-cf";
 import { parse as parseYaml } from "@std/yaml";
-import type { CellType, ExecutionQueueData, Store } from "@runt/schema";
-import { events, schema, tables } from "@runt/schema";
+import type { CellType, ExecutionQueueData } from "@runt/schema";
+import { events, materializers, tables } from "@runt/schema";
+
+// Create the store schema manually for 0.7.1+
+const state = State.SQLite.makeState({ tables, materializers });
+const schema = makeSchema({ events, state });
+export type Store = LiveStore<typeof schema>;
 
 // YAML notebook format - the canonical format
 interface NotebookDocument {
@@ -432,7 +443,23 @@ class NotebookAutomation {
                 }),
               );
 
-              if (errorOutputs.length > 0) {
+              // Also check for terminal outputs that might contain errors
+              const terminalOutputs = this.store!.query(
+                tables.outputs.select().where({
+                  cellId,
+                  outputType: "terminal",
+                }),
+              );
+
+              const hasErrors = errorOutputs.length > 0 ||
+                terminalOutputs.some((output: { data: unknown }) =>
+                  typeof output.data === "string" &&
+                  (output.data.includes("Error:") ||
+                    output.data.includes("Exception:") ||
+                    output.data.includes("Traceback"))
+                );
+
+              if (hasErrors) {
                 console.log(
                   `   ❌ Execution completed with Python errors for ${cellId}`,
                 );
@@ -542,7 +569,9 @@ class NotebookAutomation {
       const runtimeSessions = this.store!.query(
         tables.runtimeSessions.select(),
       );
-      const readySessions = runtimeSessions.filter((s) => s.status === "ready");
+      const readySessions = runtimeSessions.filter((s: { status: string }) =>
+        s.status === "ready"
+      );
 
       if (readySessions.length > 0) {
         return;
@@ -565,8 +594,13 @@ class NotebookAutomation {
    * Cleanup resources
    */
   async cleanup(): Promise<void> {
+    console.log("🧹 Cleaning up automation resources...");
+
     // Clean up any remaining subscriptions with async workaround
     if (this.activeSubscriptions.length > 0) {
+      console.log(
+        `   📤 Cleaning up ${this.activeSubscriptions.length} subscriptions`,
+      );
       await new Promise<void>((resolve) => {
         setTimeout(() => {
           try {
@@ -587,7 +621,7 @@ class NotebookAutomation {
     }
 
     if (this.store) {
-      console.log("🧹 Cleaning up LiveStore connection");
+      console.log("   🔌 Closing LiveStore connection");
       await this.store.shutdown();
     }
   }
@@ -683,11 +717,13 @@ async function main() {
     if (summary.success) {
       console.log("🎉 Notebook execution completed successfully!");
       console.log(`🌐 View results: ${summary.notebookUrl}`);
+      await automation.cleanup();
       Deno.exit(0);
     } else {
       console.error("💥 Notebook execution failed");
       console.error(`   Failed cells: ${summary.failedCells.join(", ")}`);
       console.log(`🌐 View partial results: ${summary.notebookUrl}`);
+      await automation.cleanup();
       Deno.exit(1);
     }
   } catch (error) {
@@ -697,9 +733,8 @@ async function main() {
     );
     const summary = automation.getExecutionSummary();
     console.log(`🌐 Check notebook: ${summary.notebookUrl}`);
-    Deno.exit(1);
-  } finally {
     await automation.cleanup();
+    Deno.exit(1);
   }
 }
 

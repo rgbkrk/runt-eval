@@ -21,7 +21,9 @@ interface CombinedConfig {
 /**
  * Run automation with embedded runtime agent
  */
-async function runAutomationWithRuntime(config: CombinedConfig) {
+async function runAutomationWithRuntime(
+  config: CombinedConfig,
+): Promise<{ success: boolean; summary?: object; error?: unknown }> {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).substring(2, 8);
   const notebookId = config.notebookId || `automation-${timestamp}-${random}`;
@@ -107,20 +109,24 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
     console.log(`   Successful cells: ${summary.successfulCells}`);
     console.log(`   Failed cells: ${summary.failedCells.length}`);
 
+    console.log(`\n🌐 View live notebook: ${summary.notebookUrl}`);
+
     if (summary.success) {
       console.log("\n🎉 Automation completed successfully!");
     } else {
-      console.log("\n⚠️  Automation completed with errors");
+      console.log("\n💥 Automation failed!");
       console.log(`   Failed cells: ${summary.failedCells.join(", ")}`);
+      // Don't throw here - handle in finally block
+      return { success: false, summary };
     }
 
-    console.log(`\n🌐 View live notebook: ${summary.notebookUrl}`);
+    return { success: true, summary };
   } catch (error) {
     console.error(
       "❌ Automation failed:",
       error instanceof Error ? error.message : String(error),
     );
-    throw error;
+    return { success: false, error };
   } finally {
     // Cleanup
     console.log("\n🧹 Cleaning up...");
@@ -150,10 +156,7 @@ async function runAutomationWithRuntime(config: CombinedConfig) {
       Deno.env.delete("NOTEBOOK_ID");
     }
 
-    // Force exit to prevent hanging on lingering async operations
-    setTimeout(() => {
-      Deno.exit(0);
-    }, 100);
+    // Allow cleanup to complete
   }
 }
 
@@ -196,7 +199,7 @@ async function main() {
   }
 
   try {
-    await runAutomationWithRuntime({
+    const result = await runAutomationWithRuntime({
       documentPath,
       parametersPath,
       notebookId: Deno.env.get("NOTEBOOK_ID"),
@@ -204,7 +207,13 @@ async function main() {
       stopOnError: true,
     });
 
-    console.log("🎯 Process completed successfully");
+    if (result.success) {
+      console.log("🎯 Process completed successfully");
+      Deno.exit(0);
+    } else {
+      console.error("💥 Process failed - execution errors occurred");
+      Deno.exit(1);
+    }
   } catch (error) {
     console.error(
       "❌ Process failed:",

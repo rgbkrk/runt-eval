@@ -30,6 +30,8 @@ jobs:
           echo "🔑 AUTH_TOKEN: $([ -n "$AUTH_TOKEN" ] && echo "✅ Set" || echo "❌ Missing")"
           echo "🔗 LIVESTORE_SYNC_URL: $LIVESTORE_SYNC_URL"
           echo ""
-          deno cache --reload notebook-automation.ts automation-with-runtime.ts
+          echo "🔄 Ensuring no lock file exists to get latest @runt/* packages"
+          rm -f deno.lock
+          echo "🚀 Running automation with latest packages"
           deno task automate:ci
           echo "✅ Automation completed at $(date)"

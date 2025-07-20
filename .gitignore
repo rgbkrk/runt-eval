@@ -145,3 +145,6 @@ vite.config.ts.timestamp-*
 execution-results-*.json
 executed-document-*.json
 automation-results-*.json
+
+# Deno lock file - we want latest @runt/* packages
+deno.lock
