@@ -55,6 +55,7 @@ interface ExecutionResult {
 class NotebookAutomation {
   private config: AutomationConfig;
   private notebookId: string;
+  private clientId: string = "automation-client";
   private store?: Store;
   private executionResults: ExecutionResult[] = [];
   private activeSubscriptions: Array<() => void> = [];
@@ -238,7 +239,7 @@ class NotebookAutomation {
         syncPayload: {
           authToken,
           runtime: true,
-          clientId: "automation-client",
+          clientId: this.clientId,
         },
       });
 
@@ -249,7 +250,7 @@ class NotebookAutomation {
       try {
         this.store.commit(
           events.presenceSet({
-            userId: "automation-client",
+            userId: this.clientId,
             cellId: undefined, // Automation client doesn't focus on specific cells
           }),
         );
@@ -292,14 +293,14 @@ class NotebookAutomation {
           id: cell.id,
           cellType: "code" as CellType,
           position: document.cells.indexOf(cell),
-          createdBy: "automation-client",
+          createdBy: this.clientId,
         }));
 
         // Set the cell source
         this.store.commit(events.cellSourceChanged({
           id: cell.id,
           source: cell.source,
-          modifiedBy: "automation-client",
+          modifiedBy: this.clientId,
         }));
       }
 
