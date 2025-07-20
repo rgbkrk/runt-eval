@@ -352,7 +352,7 @@ class NotebookAutomation {
         queueId,
         cellId,
         executionCount: this.executionResults.length + 1,
-        requestedBy: "automation",
+        requestedBy: this.clientId,
       }));
 
       // Wait for execution to complete
