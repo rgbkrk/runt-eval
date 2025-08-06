@@ -20,7 +20,13 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Update lockfile and run automation
+      - name: Cache dependencies
+        run: |
+          echo "📦 Caching dependencies..."
+          rm -f deno.lock
+          deno task cache
+
+      - name: Run automation
         env:
           AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
           LIVESTORE_SYNC_URL: ${{ secrets.LIVESTORE_SYNC_URL || 'wss://app.runt.run/livestore' }}
@@ -30,8 +36,5 @@ jobs:
           echo "🔑 AUTH_TOKEN: $([ -n "$AUTH_TOKEN" ] && echo "✅ Set" || echo "❌ Missing")"
           echo "🔗 LIVESTORE_SYNC_URL: $LIVESTORE_SYNC_URL"
           echo ""
-          echo "🔄 Ensuring no lock file exists to get latest @runt/* packages"
-          rm -f deno.lock
-          echo "🚀 Running automation with latest packages"
           deno task automate:ci
           echo "✅ Automation completed at $(date)"
