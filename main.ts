@@ -10,6 +10,31 @@
 import { PyodideRuntimeAgent } from "@runt/pyodide-runtime-agent";
 import { NotebookAutomation } from "./notebook-automation.ts";
 
+// Global error handlers to prevent crashes from worker issues
+globalThis.addEventListener("unhandledrejection", (event) => {
+  console.warn("⚠️  Unhandled promise rejection:", event.reason);
+  if (
+    event.reason?.message?.includes("Worker") ||
+    event.reason?.message?.includes("WASM") ||
+    event.reason?.message?.includes("RuntimeError")
+  ) {
+    console.warn("   This appears to be a worker/WASM issue - continuing...");
+    event.preventDefault(); // Prevent process crash
+  }
+});
+
+globalThis.addEventListener("error", (event) => {
+  console.warn("⚠️  Global error:", event.error);
+  if (
+    event.error?.message?.includes("Worker") ||
+    event.error?.message?.includes("WASM") ||
+    event.error?.message?.includes("RuntimeError")
+  ) {
+    console.warn("   This appears to be a worker/WASM issue - continuing...");
+    event.preventDefault(); // Prevent process crash
+  }
+});
+
 interface CombinedConfig {
   notebookId?: string;
   documentPath: string;
@@ -63,8 +88,6 @@ async function runAutomationWithRuntime(
       }`,
     );
 
-    runtimeAgent = new PyodideRuntimeAgent();
-
     // Start runtime agent with retry logic for CI environments
     const maxRetries = Deno.env.get("CI") ? 3 : 1;
     let lastError: Error | null = null;
@@ -78,16 +101,42 @@ async function runAutomationWithRuntime(
           await new Promise((resolve) => setTimeout(resolve, 2000 * attempt)); // backoff
         }
 
-        await runtimeAgent.start();
-        console.log("✅ Runtime agent started");
+        // Create new runtime agent for each attempt
+        runtimeAgent = new PyodideRuntimeAgent();
 
-        // Keep alive runs in background
-        runtimeAgent.keepAlive().catch((error) => {
-          console.error(
-            "❌ Runtime agent error:",
-            error instanceof Error ? error.message : String(error),
-          );
+        // Wrap in Promise to handle worker crashes gracefully
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Runtime agent startup timeout after 30s"));
+          }, 30000);
+
+          runtimeAgent!.start().then(() => {
+            clearTimeout(timeout);
+            console.log("✅ Runtime agent started");
+
+            // Keep alive runs in background with error handling
+            runtimeAgent!.keepAlive().catch((error) => {
+              console.warn(
+                "⚠️  Runtime agent background error (non-fatal):",
+                error instanceof Error ? error.message : String(error),
+              );
+            });
+            resolve();
+          }).catch((error) => {
+            clearTimeout(timeout);
+            reject(error);
+          });
+
+          // Handle unhandled worker errors that could crash the process
+          if (runtimeAgent && (runtimeAgent as any).worker) {
+            const worker = (runtimeAgent as any).worker;
+            worker.addEventListener("error", (event: any) => {
+              clearTimeout(timeout);
+              reject(new Error("Worker error event: " + event.message));
+            });
+          }
         });
+
         break; // Success, exit retry loop
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -96,11 +145,22 @@ async function runAutomationWithRuntime(
           lastError.message,
         );
 
+        // Clean up failed runtime agent
+        if (runtimeAgent) {
+          try {
+            await runtimeAgent.shutdown();
+          } catch {
+            // Ignore shutdown errors for failed agents
+          }
+          runtimeAgent = undefined;
+        }
+
         // Add specific Pyodide error debugging
         if (
           lastError.message.includes("Worker crashed") ||
           lastError.message.includes("RuntimeError") ||
-          lastError.message.includes("WASM")
+          lastError.message.includes("WASM") ||
+          lastError.message.includes("Worker error event")
         ) {
           console.error("🔍 Pyodide WASM initialization failure detected");
           console.error(
