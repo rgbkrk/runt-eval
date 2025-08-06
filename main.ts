@@ -125,6 +125,25 @@ async function runAutomationWithRuntime(
           await new Promise((resolve) => setTimeout(resolve, 2000 * attempt)); // backoff
         }
 
+        // Ensure cache directory exists for Pyodide (critical for CI environments)
+        try {
+          const homeDir = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") ||
+            ".";
+          const cacheDir = `${homeDir}/.runt/pyodide-cache`;
+          console.log(`📁 Ensuring Pyodide cache directory: ${cacheDir}`);
+
+          await Deno.mkdir(cacheDir, { recursive: true });
+          console.log(`✅ Cache directory ready`);
+        } catch (cacheError) {
+          console.warn(
+            `⚠️  Could not create cache directory:`,
+            cacheError instanceof Error
+              ? cacheError.message
+              : String(cacheError),
+          );
+          // Continue anyway - Pyodide might work without cache
+        }
+
         // Create new runtime agent for each attempt with proper configuration
         const args = [
           "--notebook",
