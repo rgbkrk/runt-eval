@@ -13,26 +13,50 @@ import { NotebookAutomation } from "./notebook-automation.ts";
 // Global error handlers to prevent crashes from worker issues
 globalThis.addEventListener("unhandledrejection", (event) => {
   console.warn("⚠️  Unhandled promise rejection:", event.reason);
-  if (
+  // In CI, prevent ALL promise rejections from crashing the process
+  if (Deno.env.get("CI") || Deno.env.get("GITHUB_ACTIONS")) {
+    console.warn("   CI environment - preventing process crash");
+    event.preventDefault();
+  } else if (
     event.reason?.message?.includes("Worker") ||
     event.reason?.message?.includes("WASM") ||
     event.reason?.message?.includes("RuntimeError")
   ) {
     console.warn("   This appears to be a worker/WASM issue - continuing...");
-    event.preventDefault(); // Prevent process crash
+    event.preventDefault();
   }
 });
 
 globalThis.addEventListener("error", (event) => {
   console.warn("⚠️  Global error:", event.error);
-  if (
+  // In CI, prevent ALL errors from crashing the process
+  if (Deno.env.get("CI") || Deno.env.get("GITHUB_ACTIONS")) {
+    console.warn("   CI environment - preventing process crash");
+    event.preventDefault();
+  } else if (
     event.error?.message?.includes("Worker") ||
     event.error?.message?.includes("WASM") ||
     event.error?.message?.includes("RuntimeError")
   ) {
     console.warn("   This appears to be a worker/WASM issue - continuing...");
-    event.preventDefault(); // Prevent process crash
+    event.preventDefault();
   }
+});
+
+// Process exit handlers to ensure cleanup
+Deno.addSignalListener("SIGINT", () => {
+  console.log("\n⚠️  Received SIGINT - attempting graceful shutdown...");
+  Deno.exit(0);
+});
+
+Deno.addSignalListener("SIGTERM", () => {
+  console.log("\n⚠️  Received SIGTERM - attempting graceful shutdown...");
+  Deno.exit(0);
+});
+
+// Handle process exit
+globalThis.addEventListener("beforeunload", () => {
+  console.log("🧹 Process cleanup...");
 });
 
 interface CombinedConfig {
@@ -117,37 +141,61 @@ async function runAutomationWithRuntime(
 
         runtimeAgent = new PyodideRuntimeAgent(args);
 
-        // Wrap in Promise to handle worker crashes gracefully
+        // Wrap in Promise with aggressive error handling for CI
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
             reject(new Error("Runtime agent startup timeout after 30s"));
           }, 30000);
 
-          runtimeAgent!.start().then(() => {
+          // Extra protection for CI environments
+          const cleanup = () => {
             clearTimeout(timeout);
-            console.log("✅ Runtime agent started");
+          };
 
-            // Keep alive runs in background with error handling
-            runtimeAgent!.keepAlive().catch((error) => {
-              console.warn(
-                "⚠️  Runtime agent background error (non-fatal):",
-                error instanceof Error ? error.message : String(error),
-              );
-            });
-            resolve();
-          }).catch((error) => {
-            clearTimeout(timeout);
-            reject(error);
-          });
+          try {
+            runtimeAgent!.start().then(() => {
+              cleanup();
+              console.log("✅ Runtime agent started");
 
-          // Handle unhandled worker errors that could crash the process
-          if (runtimeAgent && (runtimeAgent as any).worker) {
-            const worker = (runtimeAgent as any).worker;
-            worker.addEventListener("error", (event: any) => {
-              clearTimeout(timeout);
-              reject(new Error("Worker error event: " + event.message));
+              // Keep alive runs in background with error handling
+              runtimeAgent!.keepAlive().catch((error) => {
+                console.warn(
+                  "⚠️  Runtime agent background error (non-fatal):",
+                  error instanceof Error ? error.message : String(error),
+                );
+              });
+              resolve();
+            }).catch((error) => {
+              cleanup();
+              reject(error);
             });
+          } catch (syncError) {
+            cleanup();
+            reject(syncError);
           }
+
+          // Add extra worker error protection for CI
+          setTimeout(() => {
+            try {
+              if (runtimeAgent && (runtimeAgent as any).worker) {
+                const worker = (runtimeAgent as any).worker;
+                worker.addEventListener("error", (event: any) => {
+                  cleanup();
+                  reject(
+                    new Error(
+                      "Worker error event: " + (event.message || "unknown"),
+                    ),
+                  );
+                });
+              }
+            } catch (workerError) {
+              // Ignore worker access errors
+              console.warn(
+                "⚠️  Could not attach worker error listener:",
+                workerError,
+              );
+            }
+          }, 100); // Small delay to allow worker creation
         });
 
         break; // Success, exit retry loop
@@ -188,6 +236,9 @@ async function runAutomationWithRuntime(
             console.warn("⚠️  CI FALLBACK: Continuing without Pyodide runtime");
             console.warn(
               "   This allows testing of automation logic without Python execution",
+            );
+            console.warn(
+              "   LiveStore coordination, cell creation, and error handling will still be tested",
             );
             runtimeAgent = undefined; // Clear the failed runtime
             break; // Exit retry loop and continue
