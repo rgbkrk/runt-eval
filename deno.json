@@ -2,7 +2,7 @@
   "lock": false,
   "tasks": {
     "automate": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/example.yml",
-    "automate:ci": "deno run --allow-all --unstable-broadcast-channel main.ts notebooks/example.yml",
+    "automate:ci": "deno run --quiet --allow-all --unstable-broadcast-channel main.ts notebooks/example.yml",
     "health:simple": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/simple-health-check.yml",
     "test:error": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/error-test.yml"
   },

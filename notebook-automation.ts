@@ -110,6 +110,13 @@ class NotebookAutomation {
     console.log("🚀 Starting notebook automation via LiveStore");
     console.log(`📖 Cells to execute: ${document.cells.length}`);
 
+    // Debug environment info for CI troubleshooting
+    console.log("🔍 Environment debug info:");
+    console.log(`   Deno version: ${Deno.version.deno}`);
+    console.log(`   Platform: ${Deno.build.os}-${Deno.build.arch}`);
+    console.log(`   Target: ${Deno.build.target}`);
+    console.log(`   Pyodide worker startup environment check...`);
+
     // Inject parameters as the first cell if provided
     // Merge parameters from document, config, and arguments
     const documentParams = document.parameters || {};
