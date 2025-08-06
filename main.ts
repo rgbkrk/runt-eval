@@ -101,8 +101,21 @@ async function runAutomationWithRuntime(
           await new Promise((resolve) => setTimeout(resolve, 2000 * attempt)); // backoff
         }
 
-        // Create new runtime agent for each attempt
-        runtimeAgent = new PyodideRuntimeAgent();
+        // Create new runtime agent for each attempt with proper configuration
+        const args = [
+          "--notebook",
+          notebookId,
+          "--auth-token",
+          Deno.env.get("AUTH_TOKEN") || "",
+        ];
+
+        // Add sync URL if provided
+        const syncUrl = Deno.env.get("LIVESTORE_SYNC_URL");
+        if (syncUrl) {
+          args.push("--sync-url", syncUrl);
+        }
+
+        runtimeAgent = new PyodideRuntimeAgent(args);
 
         // Wrap in Promise to handle worker crashes gracefully
         await new Promise<void>((resolve, reject) => {
