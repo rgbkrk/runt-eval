@@ -10,7 +10,13 @@ import { makeAdapter } from "@livestore/adapter-node";
 import { makeCfSync } from "@livestore/sync-cf";
 import { parse as parseYaml } from "@std/yaml";
 import type { CellType, ExecutionQueueData } from "@runt/schema";
-import { events, materializers, tables } from "@runt/schema";
+import {
+  events,
+  fractionalIndexBetween,
+  initialFractionalIndex,
+  materializers,
+  tables,
+} from "@runt/schema";
 
 // Create the store schema manually for 0.7.1+
 const state = State.SQLite.makeState({ tables, materializers });
@@ -287,12 +293,18 @@ class NotebookAutomation {
         ownerId: "automation",
       }));
 
-      // Add all cells to the notebook
+      // Add all cells to the notebook with fractional indexing
+      let previousIndex: string | null = null;
       for (const cell of document.cells) {
-        this.store.commit(events.cellCreated({
+        // Calculate fractional index for proper ordering
+        const fractionalIndex = previousIndex === null
+          ? initialFractionalIndex()
+          : fractionalIndexBetween(previousIndex, null);
+
+        this.store.commit(events.cellCreated2({
           id: cell.id,
           cellType: "code" as CellType,
-          position: document.cells.indexOf(cell),
+          fractionalIndex,
           createdBy: this.clientId,
         }));
 
@@ -302,6 +314,8 @@ class NotebookAutomation {
           source: cell.source,
           modifiedBy: this.clientId,
         }));
+
+        previousIndex = fractionalIndex;
       }
 
       console.log(
