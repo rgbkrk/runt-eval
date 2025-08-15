@@ -38,6 +38,9 @@ live results that humans can inspect and collaborate on in real-time.
 - **CI/CD data validation**: Automated notebook-based testing
 - **Collaborative automation**: Share live results with team members
 - **System monitoring**: Basic health checks and status reporting
+- **Data pipeline integration**: Access local datasets with mounted directories
+- **Code reuse**: Import existing Python modules and scripts
+- **Workflow continuity**: Work with existing file-based workflows
 
 ## 📋 Prerequisites
 
@@ -58,6 +61,10 @@ deno task health:simple                         # Simple health check (no depend
 
 # Testing
 deno task test:error                            # Test error handling
+
+# Mounting features (NEW!)
+deno task demo:mount                            # Demo with mounted directories
+deno task automate:mount                        # Run with data directory mounted
 ```
 
 ### Custom Notebooks
@@ -86,6 +93,28 @@ cells:
 ```
 
 Then run: `deno task automate:runtime your-notebook.yml`
+
+### Host Directory Mounting (NEW!)
+
+Mount host directories for data access:
+
+```bash
+# Mount data directory as read-only
+deno run main.ts notebook.yml --mount ./data --mount-readonly
+
+# Mount multiple directories with output directory
+deno run main.ts notebook.yml --mount ./data --mount ./scripts --output-dir ./outputs
+
+# Use in notebooks
+import pandas as pd
+df = pd.read_csv('/mnt/_data/sample.csv')  # Access mounted files
+```
+
+**Features:**
+- **Read-only mounting**: Protect original data with `--mount-readonly`
+- **Multiple directories**: Mount several directories at once
+- **Output synchronization**: Use `/outputs` for results that sync back to host
+- **Automatic file discovery**: Explore mounted directories in Python cells
 
 ### Parameter Injection
 
@@ -202,7 +231,10 @@ runt-eval/
 │   ├── example.yml               # Example notebook
 │   ├── simple-health-check.yml   # Basic health check
 │   ├── error-test.yml            # Error handling test
+│   ├── mount-demo.yml            # NEW! Mounting feature demo
 │   └── README.md                 # Notebook documentation
+├── data/                         # Example data directory (for mounting)
+├── outputs/                      # Output directory (for results)
 └── .env                         # Environment configuration
 ```
 

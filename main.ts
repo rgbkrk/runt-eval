@@ -65,6 +65,9 @@ interface CombinedConfig {
   parametersPath?: string;
   executionTimeout?: number;
   stopOnError?: boolean;
+  mountPaths?: string[];
+  mountReadonly?: boolean;
+  outputDir?: string;
 }
 
 /**
@@ -156,6 +159,21 @@ async function runAutomationWithRuntime(
         const syncUrl = Deno.env.get("LIVESTORE_SYNC_URL");
         if (syncUrl) {
           args.push("--sync-url", syncUrl);
+        }
+
+        // Add mount paths if provided
+        if (config.mountPaths && config.mountPaths.length > 0) {
+          for (const mountPath of config.mountPaths) {
+            args.push("--mount", mountPath);
+          }
+          if (config.mountReadonly) {
+            args.push("--mount-readonly");
+          }
+        }
+
+        // Add output directory if provided
+        if (config.outputDir) {
+          args.push("--output-dir", config.outputDir);
         }
 
         runtimeAgent = new PyodideRuntimeAgent(args);
@@ -373,7 +391,7 @@ async function main() {
 
   if (args.length < 1) {
     console.log(
-      "Usage: deno run main.ts <document-path> [parameters-path]",
+      "Usage: deno run main.ts <document-path> [parameters-path] [options]",
     );
     console.log("");
     console.log(
@@ -385,6 +403,13 @@ async function main() {
     console.log(
       "  deno run main.ts example.yml parameters.json",
     );
+    console.log("  deno run main.ts example.yml --mount ./data --mount-readonly");
+    console.log("  deno run main.ts example.yml --mount ./scripts --output-dir ./outputs");
+    console.log("");
+    console.log("Options:");
+    console.log("  --mount <path>     - Mount a host directory (can be used multiple times)");
+    console.log("  --mount-readonly   - Mount directories as read-only");
+    console.log("  --output-dir <path> - Specify output directory for results");
     console.log("");
     console.log("Environment variables:");
     console.log("  AUTH_TOKEN       - Required for LiveStore sync");
@@ -394,7 +419,28 @@ async function main() {
   }
 
   const documentPath = args[0];
-  const parametersPath = args[1];
+  
+  // Parse all arguments to determine parameters path and mount options
+  const mountPaths: string[] = [];
+  let mountReadonly = false;
+  let outputDir: string | undefined;
+  let parametersPath: string | undefined;
+
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--mount" && i + 1 < args.length) {
+      mountPaths.push(args[i + 1]);
+      i++; // Skip next argument
+    } else if (arg === "--mount-readonly") {
+      mountReadonly = true;
+    } else if (arg === "--output-dir" && i + 1 < args.length) {
+      outputDir = args[i + 1];
+      i++; // Skip next argument
+    } else if (!arg.startsWith("--") && !parametersPath) {
+      // First non-option argument is the parameters file
+      parametersPath = arg;
+    }
+  }
 
   // Check for AUTH_TOKEN
   if (!Deno.env.get("AUTH_TOKEN")) {
@@ -410,6 +456,9 @@ async function main() {
       notebookId: Deno.env.get("NOTEBOOK_ID"),
       executionTimeout: 60000,
       stopOnError: true,
+      mountPaths: mountPaths.length > 0 ? mountPaths : undefined,
+      mountReadonly,
+      outputDir,
     });
 
     if (result.success) {

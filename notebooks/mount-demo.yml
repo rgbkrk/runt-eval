@@ -1,0 +1,172 @@
+metadata:
+  title: "Data Analysis with Mounted Directories"
+  description: "Demonstrates using mounted host directories for data analysis"
+  runtime: "python3"
+  tags: ["data-science", "mounting", "demo"]
+
+parameters:
+  data_file: "sample.csv"
+  analysis_type: "basic"
+
+cells:
+  - id: "setup"
+    source: |
+      import os
+      import sys
+      import pandas as pd
+      import numpy as np
+      
+      print("🔍 Exploring mounted directories...")
+      print(f"Current working directory: {os.getcwd()}")
+      
+      # List available mounted directories
+      if os.path.exists("/mnt"):
+          print("\n📁 Available mounted directories:")
+          for item in os.listdir("/mnt"):
+              print(f"  /mnt/{item}")
+      else:
+          print("⚠️  No mounted directories found at /mnt")
+      
+      # Check for outputs directory
+      if os.path.exists("/outputs"):
+          print("✅ /outputs directory available for saving results")
+      else:
+          print("⚠️  /outputs directory not available")
+
+  - id: "load_data"
+    source: |
+      print("📊 Loading data from mounted directories...")
+      
+      # Try to find data files in mounted directories
+      data_found = False
+      for mount_dir in os.listdir("/mnt"):
+          mount_path = f"/mnt/{mount_dir}"
+          print(f"\n🔍 Searching in {mount_path}:")
+          
+          try:
+              for file in os.listdir(mount_path):
+                  if file.endswith('.csv') or file.endswith('.json'):
+                      print(f"  📄 Found data file: {file}")
+                      data_found = True
+                      
+                      # Try to load the first CSV file we find
+                      if file.endswith('.csv'):
+                          file_path = os.path.join(mount_path, file)
+                          print(f"  📖 Loading {file_path}...")
+                          
+                          try:
+                              df = pd.read_csv(file_path)
+                              print(f"  ✅ Successfully loaded {file_path}")
+                              print(f"     Shape: {df.shape}")
+                              print(f"     Columns: {list(df.columns)}")
+                              print(f"     First few rows:")
+                              print(df.head())
+                              break
+                          except Exception as e:
+                              print(f"  ❌ Failed to load {file_path}: {e}")
+          except Exception as e:
+              print(f"  ⚠️  Error accessing {mount_path}: {e}")
+      
+      if not data_found:
+          print("❌ No data files found in mounted directories")
+          print("Creating sample data for demonstration...")
+          df = pd.DataFrame({
+              'name': ['Alice', 'Bob', 'Charlie', 'Diana'],
+              'age': [25, 30, 35, 28],
+              'city': ['New York', 'San Francisco', 'Chicago', 'Boston'],
+              'salary': [75000, 85000, 90000, 80000]
+          })
+          print("✅ Created sample DataFrame")
+          print(df)
+
+  - id: "analysis"
+    source: |
+      print("📈 Performing data analysis...")
+      
+      # Basic statistics
+      print("\n📊 Basic Statistics:")
+      print(f"Number of records: {len(df)}")
+      print(f"Average age: {df['age'].mean():.1f}")
+      print(f"Average salary: ${df['salary'].mean():,.0f}")
+      
+      # Group by city
+      print("\n🏙️  Statistics by City:")
+      city_stats = df.groupby('city').agg({
+          'age': ['mean', 'count'],
+          'salary': 'mean'
+      }).round(1)
+      print(city_stats)
+      
+      # Create some visualizations (text-based for demo)
+      print("\n📊 Data Distribution:")
+      print("Age distribution:")
+      age_bins = [20, 25, 30, 35, 40]
+      age_counts = pd.cut(df['age'], bins=age_bins).value_counts().sort_index()
+      for age_range, count in age_counts.items():
+          print(f"  {age_range}: {'*' * count} ({count})")
+
+  - id: "save_results"
+    source: |
+      print("💾 Saving analysis results...")
+      
+      # Create results summary
+      results = {
+          'total_records': len(df),
+          'average_age': float(df['age'].mean()),
+          'average_salary': float(df['salary'].mean()),
+          'cities': df['city'].unique().tolist(),
+          'analysis_timestamp': pd.Timestamp.now().isoformat()
+      }
+      
+      # Try to save to mounted directory (will fail if read-only)
+      try:
+          results_df = pd.DataFrame([results])
+          mount_save_path = "/mnt/_tmp_runt-demo-data/analysis_results.csv"
+          results_df.to_csv(mount_save_path, index=False)
+          print(f"✅ Results saved to mounted directory: {mount_save_path}")
+      except PermissionError:
+          print("⚠️  Cannot write to mounted directory (read-only)")
+      except Exception as e:
+          print(f"⚠️  Error saving to mounted directory: {e}")
+      
+      # Save to outputs directory
+      try:
+          if os.path.exists("/outputs"):
+              output_path = "/outputs/analysis_results.csv"
+              results_df.to_csv(output_path, index=False)
+              print(f"✅ Results saved to outputs directory: {output_path}")
+              
+              # Also save as JSON
+              import json
+              json_path = "/outputs/analysis_summary.json"
+              with open(json_path, 'w') as f:
+                  json.dump(results, f, indent=2)
+              print(f"✅ Summary saved as JSON: {json_path}")
+          else:
+              print("⚠️  /outputs directory not available")
+      except Exception as e:
+          print(f"❌ Error saving to outputs directory: {e}")
+      
+      print("\n🎯 Analysis complete!")
+      print("Results summary:")
+      for key, value in results.items():
+          if key != 'analysis_timestamp':
+              print(f"  {key}: {value}")
+
+  - id: "cleanup"
+    source: |
+      print("🧹 Cleanup and final notes...")
+      
+      print("\n📝 Summary of mounted directory features:")
+      print("✅ Host directories can be mounted for data access")
+      print("✅ Read-only mounting protects original data")
+      print("✅ /outputs directory for saving results")
+      print("✅ Automatic file synchronization after execution")
+      
+      print("\n💡 Tips for production use:")
+      print("• Use --mount-readonly for data protection")
+      print("• Mount only necessary directories for performance")
+      print("• Use /outputs for saving results and artifacts")
+      print("• Large directories may take time to mount")
+      
+      print("\n🚀 Ready for automated data analysis workflows!")

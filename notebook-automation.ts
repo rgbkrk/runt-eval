@@ -304,7 +304,7 @@ class NotebookAutomation {
       let previousIndex: string | null = null;
       for (const cell of document.cells) {
         // Calculate fractional index for proper ordering
-        const fractionalIndex = previousIndex === null
+        const fractionalIndex: string = previousIndex === null
           ? initialFractionalIndex()
           : fractionalIndexBetween(previousIndex, null);
 
