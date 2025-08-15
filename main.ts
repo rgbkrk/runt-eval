@@ -68,6 +68,8 @@ interface CombinedConfig {
   mountPaths?: string[];
   mountReadonly?: boolean;
   outputDir?: string;
+  indexMountedFiles?: boolean;
+  aiMaxIterations?: number;
 }
 
 /**
@@ -174,6 +176,16 @@ async function runAutomationWithRuntime(
         // Add output directory if provided
         if (config.outputDir) {
           args.push("--output-dir", config.outputDir);
+        }
+
+        // Add index mounted files flag if provided
+        if (config.indexMountedFiles) {
+          args.push("--index-mounted-files");
+        }
+
+        // Add AI max iterations if provided
+        if (config.aiMaxIterations) {
+          args.push("--ai-max-iterations", config.aiMaxIterations.toString());
         }
 
         runtimeAgent = new PyodideRuntimeAgent(args);
@@ -389,7 +401,8 @@ async function runAutomationWithRuntime(
 async function main() {
   const args = Deno.args;
 
-  if (args.length < 1) {
+  // Check for help flag
+  if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     console.log(
       "Usage: deno run main.ts <document-path> [parameters-path] [options]",
     );
@@ -405,11 +418,14 @@ async function main() {
     );
     console.log("  deno run main.ts example.yml --mount ./data --mount-readonly");
     console.log("  deno run main.ts example.yml --mount ./scripts --output-dir ./outputs");
+    console.log("  deno run main.ts example.yml --mount ./data --index-mounted-files");
     console.log("");
     console.log("Options:");
     console.log("  --mount <path>     - Mount a host directory (can be used multiple times)");
     console.log("  --mount-readonly   - Mount directories as read-only");
     console.log("  --output-dir <path> - Specify output directory for results");
+    console.log("  --index-mounted-files - Index mounted files for AI search");
+    console.log("  --ai-max-iterations <num> - Maximum iterations for AI agent tool calling loops (default: 10)");
     console.log("");
     console.log("Environment variables:");
     console.log("  AUTH_TOKEN       - Required for LiveStore sync");
@@ -425,6 +441,8 @@ async function main() {
   let mountReadonly = false;
   let outputDir: string | undefined;
   let parametersPath: string | undefined;
+  let indexMountedFiles = false;
+  let aiMaxIterations: number | undefined;
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -435,6 +453,17 @@ async function main() {
       mountReadonly = true;
     } else if (arg === "--output-dir" && i + 1 < args.length) {
       outputDir = args[i + 1];
+      i++; // Skip next argument
+    } else if (arg === "--index-mounted-files") {
+      indexMountedFiles = true;
+    } else if (arg === "--ai-max-iterations" && i + 1 < args.length) {
+      const iterations = parseInt(args[i + 1], 10);
+      if (!isNaN(iterations) && iterations > 0) {
+        aiMaxIterations = iterations;
+      } else {
+        console.error("❌ Invalid ai-max-iterations value. Must be a positive integer.");
+        Deno.exit(1);
+      }
       i++; // Skip next argument
     } else if (!arg.startsWith("--") && !parametersPath) {
       // First non-option argument is the parameters file
@@ -459,6 +488,8 @@ async function main() {
       mountPaths: mountPaths.length > 0 ? mountPaths : undefined,
       mountReadonly,
       outputDir,
+      indexMountedFiles,
+      aiMaxIterations,
     });
 
     if (result.success) {

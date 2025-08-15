@@ -15,7 +15,9 @@
     "automate:mount": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/example.yml --mount ./data --mount-readonly",
     "demo:mount": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/mount-demo.yml --mount ./data --mount-readonly --output-dir ./outputs",
     "demo:mount:local": "deno run --env-file=.env --allow-all --unstable-broadcast-channel --config deno.dev.json main.ts notebooks/mount-demo.yml --mount ./data --mount-readonly --output-dir ./outputs",
-    "demo:mount:local:no-check": "deno run --env-file=.env --allow-all --unstable-broadcast-channel --no-check --config deno.dev.json main.ts notebooks/mount-demo.yml --mount ./data --mount-readonly --output-dir ./outputs"
+    "demo:mount:local:no-check": "deno run --env-file=.env --allow-all --unstable-broadcast-channel --no-check --config deno.dev.json main.ts notebooks/mount-demo.yml --mount ./data --mount-readonly --output-dir ./outputs",
+    "demo:index-files": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/mount-demo.yml --mount ./data --mount-readonly --index-mounted-files --output-dir ./outputs",
+    "demo:ai-iterations": "deno run --env-file=.env --allow-all --unstable-broadcast-channel main.ts notebooks/celltypes-demo.yml --ai-max-iterations 3"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
