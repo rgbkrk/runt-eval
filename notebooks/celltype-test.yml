@@ -1,0 +1,35 @@
+# Test file for celltype feature
+metadata:
+  title: "Cell Type Test"
+  description: "Testing celltype support and backward compatibility"
+  runtime: "python3"
+
+parameters:
+  test_value: 42
+
+cells:
+  # Cell without celltype (should default to "code")
+  - id: "default-cell"
+    source: |
+      print("This cell has no celltype specified")
+      print(f"Test value: {test_value}")
+
+  # Explicit code cell
+  - id: "explicit-code"
+    celltype: "code"
+    source: |
+      print("This is an explicit code cell")
+      import math
+      print(f"Square root of {test_value}: {math.sqrt(test_value)}")
+
+  # AI cell
+  - id: "ai-cell"
+    celltype: "ai"
+    source: |
+      Explain what this test is demonstrating and how the different cell types work.
+
+  # Another cell without celltype
+  - id: "another-default"
+    source: |
+      print("Another cell without celltype - should default to code")
+      print("✅ Cell type test completed!")

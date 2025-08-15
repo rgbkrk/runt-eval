@@ -16,6 +16,7 @@ parameters:
 # Notebook cells - executed in sequence
 cells:
   - id: "setup"
+    celltype: "code"
     source: |
       import numpy as np
       import pandas as pd
@@ -24,6 +25,7 @@ cells:
       print(f'Random seed: {random_seed}')
 
   - id: "data-generation"
+    celltype: "code"
     source: |
       # Create sample data
       np.random.seed(random_seed)
@@ -36,7 +38,15 @@ cells:
       print(f'Created DataFrame with {len(df)} rows')
       print(f'Columns: {list(df.columns)}')
 
+  - id: "ai-analysis"
+    celltype: "ai"
+    source: |
+      Analyze the dataset and provide insights about the data distribution, 
+      correlations, and any interesting patterns. Focus on the relationship 
+      between x and y values across different categories.
+
   - id: "analysis"
+    celltype: "code"
     source: |
       # Basic statistics
       print("Dataset Summary:")
@@ -48,7 +58,15 @@ cells:
       correlation = df[['x', 'y']].corr()
       print(f"\nCorrelation between x and y: {correlation.iloc[0,1]:.3f}")
 
+  - id: "ai-visualization-suggestion"
+    celltype: "ai"
+    source: |
+      Suggest the best visualization approach for this dataset. 
+      Consider what would be most effective for showing the relationship 
+      between x and y values and the distribution across categories.
+
   - id: "visualization"
+    celltype: "code"
     source: |
       # Create visualization
       plt.style.use(plot_style if plot_style in plt.style.available else 'default')
@@ -79,7 +97,15 @@ cells:
       plt.tight_layout()
       plt.show()
 
+  - id: "ai-summary"
+    celltype: "ai"
+    source: |
+      Provide a comprehensive summary of the analysis results, 
+      including key findings, insights, and recommendations for 
+      further analysis.
+
   - id: "summary"
+    celltype: "code"
     source: |
       # Final summary
       print("📊 Analysis Summary:")

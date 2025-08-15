@@ -82,17 +82,19 @@ parameters:
 
 cells:
   - id: "setup"
+    celltype: "code"
     source: |
       import pandas as pd
       print(f'Hello from automation! Using {data_size} rows')
 
   - id: "analysis"
+    celltype: "code"
     source: |
       df = pd.DataFrame({'x': range(data_size)})
       print(f'Created DataFrame with {len(df)} rows')
 ```
 
-Then run: `deno task automate:runtime your-notebook.yml`
+Then run: `deno run main.ts your-notebook.yml`
 
 ### Host Directory Mounting (NEW!)
 
@@ -147,7 +149,7 @@ model_type = "random_forest"
 
 ### YAML Notebook Format
 
-Clean, readable configuration format:
+Clean, readable configuration format with support for different cell types:
 
 ```yaml
 metadata:
@@ -162,11 +164,29 @@ parameters:
 
 cells:
   - id: "setup"
+    celltype: "code"
     source: |
       import pandas as pd
       import numpy as np
       print('Starting analysis...')
+
+  - id: "ai-insights"
+    celltype: "ai"
+    source: |
+      Analyze the data and provide insights about patterns and trends.
 ```
+
+#### Cell Types
+
+The YAML format supports different cell types for different purposes:
+
+- **`code`** (default): Executes Python code using the Pyodide runtime
+- **`ai`**: Uses AI to generate insights, analysis, and responses
+- **`markdown`**: Renders markdown content (for documentation)
+- **`sql`**: Executes SQL queries
+- **`raw`**: Raw content display
+
+If `celltype` is not specified, cells default to `"code"` type.
 
 ### Reactive LiveStore Coordination
 

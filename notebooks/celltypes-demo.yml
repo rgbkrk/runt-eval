@@ -1,0 +1,120 @@
+# YAML Notebook Configuration - Cell Types Demo
+# This notebook demonstrates the different cell types supported by runt-eval
+
+metadata:
+  title: "Cell Types Demonstration"
+  description: "Showcasing code and ai cell types in YAML notebooks"
+  runtime: "python3"
+  tags: ["demo", "celltypes", "ai", "code"]
+
+# Parameters that can be injected into cells
+parameters:
+  dataset_name: "sample_data"
+  analysis_depth: "comprehensive"
+
+# Notebook cells - demonstrating different cell types
+cells:
+  # Code cell - executes Python code
+  - id: "setup"
+    celltype: "code"
+    source: |
+      import pandas as pd
+      import numpy as np
+      print("🔧 Setup complete - libraries imported")
+      print(f"📊 Dataset: {dataset_name}")
+      print(f"🔍 Analysis depth: {analysis_depth}")
+
+  # AI cell - uses AI to generate insights
+  - id: "ai-intro"
+    celltype: "ai"
+    source: |
+      Explain what this notebook is demonstrating and how the different 
+      cell types work together. Provide a brief overview of the workflow.
+
+  # Code cell - creates sample data
+  - id: "create-data"
+    celltype: "code"
+    source: |
+      # Create sample dataset
+      np.random.seed(42)
+      data = {
+          'temperature': np.random.normal(20, 5, 100),
+          'humidity': np.random.normal(60, 15, 100),
+          'pressure': np.random.normal(1013, 10, 100),
+          'location': np.random.choice(['A', 'B', 'C'], 100)
+      }
+      df = pd.DataFrame(data)
+      print(f"📈 Created dataset with {len(df)} records")
+      print(f"📍 Locations: {', '.join(df['location'].unique())}")
+
+  # AI cell - analyzes the data
+  - id: "ai-analysis"
+    celltype: "ai"
+    source: |
+      Analyze this weather dataset. Look for patterns in temperature, 
+      humidity, and pressure across different locations. Identify any 
+      correlations or interesting trends.
+
+  # Code cell - performs statistical analysis
+  - id: "statistics"
+    celltype: "code"
+    source: |
+      # Statistical summary
+      print("📊 Dataset Statistics:")
+      print(df.describe())
+      
+      print("\n📍 By Location:")
+      for loc in df['location'].unique():
+          subset = df[df['location'] == loc]
+          print(f"\n{loc}:")
+          print(f"  Temperature: {subset['temperature'].mean():.1f}°C ± {subset['temperature'].std():.1f}°C")
+          print(f"  Humidity: {subset['humidity'].mean():.1f}% ± {subset['humidity'].std():.1f}%")
+          print(f"  Pressure: {subset['pressure'].mean():.1f}hPa ± {subset['pressure'].std():.1f}hPa")
+
+  # AI cell - interprets results
+  - id: "ai-interpretation"
+    celltype: "ai"
+    source: |
+      Interpret the statistical results. What do the numbers tell us about 
+      the weather patterns? Are there significant differences between locations? 
+      What might explain these patterns?
+
+  # Code cell - creates visualizations
+  - id: "visualization"
+    celltype: "code"
+    source: |
+      import matplotlib.pyplot as plt
+      
+      # Create correlation heatmap
+      correlation_matrix = df[['temperature', 'humidity', 'pressure']].corr()
+      print("🔗 Correlation Matrix:")
+      print(correlation_matrix)
+      
+      # Box plots by location
+      fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+      
+      for i, var in enumerate(['temperature', 'humidity', 'pressure']):
+          df.boxplot(column=var, by='location', ax=axes[i])
+          axes[i].set_title(f'{var.title()} by Location')
+          axes[i].set_xlabel('Location')
+      
+      plt.tight_layout()
+      plt.show()
+
+  # AI cell - suggests next steps
+  - id: "ai-next-steps"
+    celltype: "ai"
+    source: |
+      Based on the analysis so far, suggest what additional analysis or 
+      visualizations would be most valuable. What questions should we 
+      investigate further?
+
+  # Code cell - final summary
+  - id: "conclusion"
+    celltype: "code"
+    source: |
+      print("🎯 Analysis Complete!")
+      print(f"📊 Analyzed {len(df)} weather records")
+      print(f"📍 Across {len(df['location'].unique())} locations")
+      print(f"📈 Key variables: temperature, humidity, pressure")
+      print("\n✅ This demonstrates how code and AI cells work together!")

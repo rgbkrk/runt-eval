@@ -35,6 +35,7 @@ interface NotebookDocument {
   cells: Array<{
     id: string;
     source: string;
+    celltype?: CellType; // Optional: defaults to "code" if not specified
   }>;
 }
 
@@ -310,7 +311,7 @@ class NotebookAutomation {
 
         this.store.commit(events.cellCreated2({
           id: cell.id,
-          cellType: "code" as CellType,
+          cellType: (cell.celltype || "code") as CellType,
           fractionalIndex,
           createdBy: this.clientId,
         }));
