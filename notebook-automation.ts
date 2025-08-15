@@ -23,6 +23,22 @@ const state = State.SQLite.makeState({ tables, materializers });
 const schema = makeSchema({ events, state });
 export type Store = LiveStore<typeof schema>;
 
+/**
+ * Determine the appropriate notebook URL based on environment
+ */
+function getNotebookUrl(notebookId: string): string {
+  const syncUrl = Deno.env.get("LIVESTORE_SYNC_URL");
+  const devMode = Deno.env.get("DEV_MODE");
+  
+  // Check if we're running locally
+  if (devMode === "true" || (syncUrl && syncUrl.includes("localhost"))) {
+    return `http://localhost:5173/?notebook=${notebookId}`;
+  }
+  
+  // Default to production URL
+  return `https://app.runt.run/?notebook=${notebookId}`;
+}
+
 // YAML notebook format - the canonical format
 interface NotebookDocument {
   metadata?: {
@@ -187,7 +203,7 @@ class NotebookAutomation {
     );
     console.log(`   Failed cells: ${failedCells.length}`);
     console.log(
-      `📔 Notebook available at: https://app.runt.run/?notebook=${this.notebookId}`,
+      `📔 Notebook available at: ${getNotebookUrl(this.notebookId)}`,
     );
 
     return {
@@ -595,7 +611,7 @@ class NotebookAutomation {
       failedCells: this.executionResults.filter((r) => !r.success).map((r) =>
         r.cellId
       ),
-      notebookUrl: `https://app.runt.run/?notebook=${this.notebookId}`,
+      notebookUrl: getNotebookUrl(this.notebookId),
     };
   }
 

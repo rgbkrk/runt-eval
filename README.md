@@ -107,6 +107,12 @@ deno run main.ts notebook.yml --mount ./data --mount-readonly
 # Mount multiple directories with output directory
 deno run main.ts notebook.yml --mount ./data --mount ./scripts --output-dir ./outputs
 
+# Mount with vector store indexing for AI search
+deno run main.ts notebook.yml --mount ./data --mount-readonly --index-mounted-files
+
+# Control AI agent iterations
+deno run main.ts notebook.yml --ai-max-iterations 5
+
 # Use in notebooks
 import pandas as pd
 df = pd.read_csv('/mnt/_data/sample.csv')  # Access mounted files
@@ -117,6 +123,8 @@ df = pd.read_csv('/mnt/_data/sample.csv')  # Access mounted files
 - **Multiple directories**: Mount several directories at once
 - **Output synchronization**: Use `/outputs` for results that sync back to host
 - **Automatic file discovery**: Explore mounted directories in Python cells
+- **Vector store indexing**: Enable AI search through mounted files with `--index-mounted-files`
+- **AI agent control**: Limit AI tool calling iterations with `--ai-max-iterations`
 
 ### Parameter Injection
 

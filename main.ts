@@ -82,9 +82,23 @@ async function runAutomationWithRuntime(
   const random = Math.random().toString(36).substring(2, 8);
   const notebookId = config.notebookId || `automation-${timestamp}-${random}`;
 
+  // Determine the appropriate URL based on environment
+  const getLiveUrl = (notebookId: string): string => {
+    const syncUrl = Deno.env.get("LIVESTORE_SYNC_URL");
+    const devMode = Deno.env.get("DEV_MODE");
+    
+    // Check if we're running locally
+    if (devMode === "true" || (syncUrl && syncUrl.includes("localhost"))) {
+      return `http://localhost:5173/?notebook=${notebookId}`;
+    }
+    
+    // Default to production URL
+    return `https://app.runt.run/?notebook=${notebookId}`;
+  };
+
   console.log("🚀 Starting combined automation + runtime");
   console.log(`📔 Notebook ID: ${notebookId}`);
-  console.log(`🌐 Live URL: https://app.runt.run/?notebook=${notebookId}`);
+  console.log(`🌐 Live URL: ${getLiveUrl(notebookId)}`);
 
   // Set notebook ID in environment for both components
   const originalNotebookId = Deno.env.get("NOTEBOOK_ID");

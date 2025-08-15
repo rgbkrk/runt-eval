@@ -72,6 +72,9 @@ deno task demo:mount:local
 # Run automation with local packages
 deno run --env-file=.env --allow-all --unstable-broadcast-channel --config deno.dev.json main.ts notebooks/example.yml
 
+# Run celltypes demo with local packages
+deno run --env-file=.env --allow-all --unstable-broadcast-channel --config deno.dev.json main.ts notebooks/celltypes-demo.yml
+
 # Run with mounting features
 deno run --env-file=.env --allow-all --unstable-broadcast-channel --config deno.dev.json main.ts notebooks/mount-demo.yml --mount ./data --mount-readonly --output-dir ./outputs
 ```
@@ -165,6 +168,66 @@ deno run --config deno.dev.json main.ts notebooks/mount-demo.yml
 ```bash
 deno run main.ts notebooks/mount-demo.yml
 ```
+
+## 🆕 New Features
+
+### Cell Types Support
+
+The YAML notebook format now supports different cell types:
+
+```yaml
+cells:
+  - id: "code-example"
+    celltype: "code"  # Executes Python code (default)
+    source: |
+      import pandas as pd
+      print("Hello from Python!")
+
+  - id: "ai-example"
+    celltype: "ai"    # Uses AI for analysis and insights
+    source: |
+      Analyze this dataset and provide insights about the patterns.
+
+  - id: "default-example"
+    source: |         # No celltype specified - defaults to "code"
+      print("This defaults to code cell type")
+```
+
+**Supported cell types**:
+- `code` (default): Python code execution
+- `ai`: AI-powered analysis and insights
+- `markdown`: Documentation and text
+- `sql`: Database queries
+- `raw`: Raw content display
+
+**Testing cell types**:
+```bash
+# Test with local packages
+deno run --config deno.dev.json main.ts notebooks/celltypes-demo.yml
+
+# Test with production packages
+deno run main.ts notebooks/celltypes-demo.yml
+
+# Test with unique notebook IDs (useful for multiple runs)
+deno run main.ts notebooks/celltypes-demo.yml --unique
+
+# Test with custom notebook ID
+deno run main.ts notebooks/celltypes-demo.yml --notebook-id my-test-run
+```
+
+#### Notebook ID Behavior
+
+The notebook ID generation follows this priority order:
+
+1. **`--notebook-id` flag**: Explicitly specified notebook ID
+2. **`--unique` flag**: Force unique ID for each run (overrides environment variable)
+3. **`NOTEBOOK_ID` environment variable**: Custom ID from environment
+4. **Auto-generated**: Timestamp-based ID (reproducible for same YAML file)
+
+This allows for flexible notebook management:
+- **Reproducible runs**: Same YAML = same notebook ID (default)
+- **Unique runs**: `--unique` flag for testing/CI
+- **Named experiments**: `--notebook-id` for organized workflows
 
 ## 📊 Example: Full Development Workflow
 
