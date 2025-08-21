@@ -19,6 +19,10 @@ secret:
 2. Click **Settings** → **Secrets and variables** → **Actions**
 3. Click **"New repository secret"**
 4. Enter:
+   - **Name**: `RUNT_API_KEY` (preferred)
+   - **Value**: Your runt.run API key
+   
+   Or as fallback:
    - **Name**: `AUTH_TOKEN`
    - **Value**: Your runt.run authentication token
 
@@ -86,7 +90,7 @@ To modify the automation:
 
 **Workflow fails with authentication error:**
 
-- Verify `AUTH_TOKEN` secret is set correctly
+- Verify `RUNT_API_KEY` or `AUTH_TOKEN` secret is set correctly
 - Check that the token is valid and has proper permissions
 
 **Automation runs but cells stay queued:**

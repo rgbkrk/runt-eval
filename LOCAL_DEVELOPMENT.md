@@ -20,10 +20,12 @@ runtimed/
    ./setup-local-dev.sh
    ```
 
-2. **Set your AUTH_TOKEN** in the `.env` file:
+2. **Set your authentication** in the `.env` file:
    ```bash
-   # Edit .env and set your token
-   AUTH_TOKEN=your-actual-auth-token
+   # Edit .env and set your token (RUNT_API_KEY preferred)
+   RUNT_API_KEY=your-actual-runt-api-key
+   # or fallback to AUTH_TOKEN
+   # AUTH_TOKEN=your-actual-auth-token
    ```
 
 3. **Start anode** (if not already running):
@@ -57,7 +59,8 @@ This file contains the local import mappings:
 Your environment configuration:
 
 ```bash
-AUTH_TOKEN=your-auth-token-here
+RUNT_API_KEY=your-runt-api-key-here
+# AUTH_TOKEN=your-auth-token-here  # Fallback
 DEV_MODE=true
 # Optional: LIVESTORE_SYNC_URL=wss://localhost:8787
 ```

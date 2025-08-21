@@ -164,11 +164,13 @@ async function runAutomationWithRuntime(
         }
 
         // Create new runtime agent for each attempt with proper configuration
+        // Use RUNT_API_KEY with AUTH_TOKEN fallback (new auth priority)
+        const authToken = Deno.env.get("RUNT_API_KEY") || Deno.env.get("AUTH_TOKEN") || "";
         const args = [
           "--notebook",
           notebookId,
           "--auth-token",
-          Deno.env.get("AUTH_TOKEN") || "",
+          authToken,
         ];
 
         // Add sync URL if provided
@@ -442,9 +444,10 @@ async function main() {
     console.log("  --ai-max-iterations <num> - Maximum iterations for AI agent tool calling loops (default: 10)");
     console.log("");
     console.log("Environment variables:");
-    console.log("  AUTH_TOKEN       - Required for LiveStore sync");
-    console.log("  NOTEBOOK_ID      - Optional, auto-generated if not set");
-    console.log("  LIVESTORE_SYNC_URL - Optional sync URL");
+console.log("  RUNT_API_KEY     - Preferred for runtime agents");
+console.log("  AUTH_TOKEN       - Fallback for service-level auth");
+console.log("  NOTEBOOK_ID      - Optional, auto-generated if not set");
+console.log("  LIVESTORE_SYNC_URL - Optional sync URL");
     Deno.exit(1);
   }
 
@@ -485,10 +488,13 @@ async function main() {
     }
   }
 
-  // Check for AUTH_TOKEN
-  if (!Deno.env.get("AUTH_TOKEN")) {
-    console.error("❌ AUTH_TOKEN environment variable is required");
-    console.error("   Make sure your .env file contains AUTH_TOKEN=your-token");
+  // Check for authentication (RUNT_API_KEY preferred, AUTH_TOKEN fallback)
+  const authToken = Deno.env.get("RUNT_API_KEY") || Deno.env.get("AUTH_TOKEN");
+  if (!authToken) {
+    console.error("❌ RUNT_API_KEY or AUTH_TOKEN environment variable is required");
+    console.error("   Make sure your .env file contains either:");
+    console.error("   RUNT_API_KEY=your-runt-api-key (preferred)");
+    console.error("   AUTH_TOKEN=your-auth-token (fallback)");
     Deno.exit(1);
   }
 

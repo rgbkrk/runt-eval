@@ -231,7 +231,8 @@ Reactive Flow:    ✅ No polling      ✅ Immediate cell transitions
 Required in `.env` file:
 
 ```bash
-AUTH_TOKEN=your-auth-token              # Required for LiveStore sync
+RUNT_API_KEY=your-runt-api-key          # Preferred for runtime agents
+# AUTH_TOKEN=your-auth-token            # Fallback for service-level auth
 LIVESTORE_SYNC_URL=wss://app.runt.run   # Optional, defaults correctly  
 NOTEBOOK_ID=custom-id                   # Optional, auto-generated
 ```
@@ -273,7 +274,7 @@ runt-eval/
 **Cells stuck "Queued for execution"**
 
 - Runtime agent not connected to same notebook ID
-- Check AUTH_TOKEN in `.env` file
+- Check RUNT_API_KEY or AUTH_TOKEN in `.env` file
 
 **Import/module errors**
 
@@ -282,7 +283,7 @@ runt-eval/
 
 **LiveStore connection issues**
 
-- Verify `AUTH_TOKEN` is valid
+- Verify `RUNT_API_KEY` or `AUTH_TOKEN` is valid
 - Check internet connection for sync
 
 ### Verification
@@ -314,7 +315,7 @@ await slackWebhook({
 # In GitHub Actions
 - name: Run Data Validation
   run: |
-    echo "AUTH_TOKEN=${{ secrets.AUTH_TOKEN }}" > .env
+    echo "RUNT_API_KEY=${{ secrets.RUNT_API_KEY }}" > .env
     deno task automate:runtime validation-notebook.json
 ```
 

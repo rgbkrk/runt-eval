@@ -28,11 +28,13 @@ jobs:
 
       - name: Run automation
         env:
+          RUNT_API_KEY: ${{ secrets.RUNT_API_KEY }}
           AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
           LIVESTORE_SYNC_URL: ${{ secrets.LIVESTORE_SYNC_URL || 'wss://app.runt.run/livestore' }}
         run: |
           echo "🚀 Starting hourly automation at $(date)"
           echo "📋 Environment variables:"
+          echo "🔑 RUNT_API_KEY: $([ -n "$RUNT_API_KEY" ] && echo "✅ Set" || echo "❌ Missing")"
           echo "🔑 AUTH_TOKEN: $([ -n "$AUTH_TOKEN" ] && echo "✅ Set" || echo "❌ Missing")"
           echo "🔗 LIVESTORE_SYNC_URL: $LIVESTORE_SYNC_URL"
           echo ""

@@ -243,13 +243,14 @@ class NotebookAutomation {
       console.log(`🔗 Sync URL: ${config.syncUrl}`);
       console.log(`📓 Notebook: ${config.notebookId}`);
 
-      // Create adapter with sync backend if AUTH_TOKEN is available
-      const authToken = Deno.env.get("AUTH_TOKEN");
+      // Create adapter with sync backend if auth token is available
+      // Use RUNT_API_KEY with AUTH_TOKEN fallback (new auth priority)
+      const authToken = Deno.env.get("RUNT_API_KEY") || Deno.env.get("AUTH_TOKEN");
       const syncUrl = config.syncUrl || "wss://app.runt.run/livestore";
 
       if (!authToken) {
         throw new Error(
-          "AUTH_TOKEN is required for LiveStore sync in automation mode",
+          "RUNT_API_KEY or AUTH_TOKEN is required for LiveStore sync in automation mode",
         );
       }
 
@@ -705,7 +706,10 @@ async function main() {
     console.log("");
     console.log("Environment variables:");
     console.log(
-      "  AUTH_TOKEN         - Authentication token (required for sync)",
+      "  RUNT_API_KEY       - Preferred for runtime agents",
+    );
+    console.log(
+      "  AUTH_TOKEN         - Fallback for service-level auth",
     );
     console.log(
       "  LIVESTORE_SYNC_URL - LiveStore sync URL (optional, defaults to app.runt.run)",
@@ -748,13 +752,13 @@ async function main() {
     }
   }
 
-  // Check if AUTH_TOKEN is available for sync
-  const authToken = Deno.env.get("AUTH_TOKEN");
+  // Check if authentication is available for sync (RUNT_API_KEY preferred, AUTH_TOKEN fallback)
+  const authToken = Deno.env.get("RUNT_API_KEY") || Deno.env.get("AUTH_TOKEN");
   if (!authToken) {
     console.warn(
-      "⚠️  No AUTH_TOKEN found - this may not work with real execution",
+      "⚠️  No RUNT_API_KEY or AUTH_TOKEN found - this may not work with real execution",
     );
-    console.warn("   Set AUTH_TOKEN environment variable to enable sync");
+    console.warn("   Set RUNT_API_KEY or AUTH_TOKEN environment variable to enable sync");
   }
 
   const automation = new NotebookAutomation({
