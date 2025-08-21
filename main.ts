@@ -64,6 +64,7 @@ interface CombinedConfig {
   documentPath: string;
   parametersPath?: string;
   executionTimeout?: number;
+  runtimeTimeout?: number;
   stopOnError?: boolean;
   mountPaths?: string[];
   mountReadonly?: boolean;
@@ -118,6 +119,7 @@ async function runAutomationWithRuntime(
       notebookId,
       stopOnError: config.stopOnError ?? true,
       executionTimeout: config.executionTimeout ?? 60000,
+      runtimeTimeout: config.runtimeTimeout ?? 30000,
     });
 
     // Start pyodide runtime agent in background with retry logic
@@ -442,6 +444,8 @@ async function main() {
     console.log("  --output-dir <path> - Specify output directory for results");
     console.log("  --index-mounted-files - Index mounted files for AI search");
     console.log("  --ai-max-iterations <num> - Maximum iterations for AI agent tool calling loops (default: 10)");
+    console.log("  --cell-execution-timeout <sec> - Cell execution timeout in seconds (default: 60)");
+    console.log("  --runtime-timeout <sec> - Runtime session availability timeout in seconds (default: 30)");
     console.log("");
     console.log("Environment variables:");
 console.log("  RUNT_API_KEY     - Preferred for runtime agents");
@@ -460,6 +464,8 @@ console.log("  LIVESTORE_SYNC_URL - Optional sync URL");
   let parametersPath: string | undefined;
   let indexMountedFiles = false;
   let aiMaxIterations: number | undefined;
+  let cellExecutionTimeout = 60000; // Default 60 seconds in milliseconds
+  let runtimeTimeout = 30000; // Default 30 seconds in milliseconds
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -482,6 +488,24 @@ console.log("  LIVESTORE_SYNC_URL - Optional sync URL");
         Deno.exit(1);
       }
       i++; // Skip next argument
+    } else if (arg === "--cell-execution-timeout" && i + 1 < args.length) {
+      const timeoutValue = parseInt(args[i + 1], 10);
+      if (!isNaN(timeoutValue) && timeoutValue > 0) {
+        cellExecutionTimeout = timeoutValue * 1000; // Convert to milliseconds
+      } else {
+        console.error("❌ Invalid cell-execution-timeout value. Must be a positive integer.");
+        Deno.exit(1);
+      }
+      i++; // Skip next argument
+    } else if (arg === "--runtime-timeout" && i + 1 < args.length) {
+      const timeoutValue = parseInt(args[i + 1], 10);
+      if (!isNaN(timeoutValue) && timeoutValue > 0) {
+        runtimeTimeout = timeoutValue * 1000; // Convert to milliseconds
+      } else {
+        console.error("❌ Invalid runtime-timeout value. Must be a positive integer.");
+        Deno.exit(1);
+      }
+      i++; // Skip next argument
     } else if (!arg.startsWith("--") && !parametersPath) {
       // First non-option argument is the parameters file
       parametersPath = arg;
@@ -498,12 +522,16 @@ console.log("  LIVESTORE_SYNC_URL - Optional sync URL");
     Deno.exit(1);
   }
 
+  console.log(`⏱️  Cell execution timeout: ${cellExecutionTimeout / 1000} seconds`);
+  console.log(`⏱️  Runtime timeout: ${runtimeTimeout / 1000} seconds`);
+
   try {
     const result = await runAutomationWithRuntime({
       documentPath,
       parametersPath,
       notebookId: Deno.env.get("NOTEBOOK_ID"),
-      executionTimeout: 60000,
+      executionTimeout: cellExecutionTimeout,
+      runtimeTimeout,
       stopOnError: true,
       mountPaths: mountPaths.length > 0 ? mountPaths : undefined,
       mountReadonly,
