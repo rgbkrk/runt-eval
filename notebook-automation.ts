@@ -23,6 +23,22 @@ const state = State.SQLite.makeState({ tables, materializers });
 const schema = makeSchema({ events, state });
 export type Store = LiveStore<typeof schema>;
 
+/**
+ * Determine the appropriate notebook URL based on environment
+ */
+function getNotebookUrl(notebookId: string): string {
+  const syncUrl = Deno.env.get("LIVESTORE_SYNC_URL");
+  const devMode = Deno.env.get("DEV_MODE");
+  
+  // Check if we're running locally
+  if (devMode === "true" || (syncUrl && syncUrl.includes("localhost"))) {
+    return `http://localhost:5173/?notebook=${notebookId}`;
+  }
+  
+  // Default to production URL
+  return `https://app.runt.run/?notebook=${notebookId}`;
+}
+
 // YAML notebook format - the canonical format
 interface NotebookDocument {
   metadata?: {
@@ -35,6 +51,7 @@ interface NotebookDocument {
   cells: Array<{
     id: string;
     source: string;
+    celltype?: CellType; // Optional: defaults to "code" if not specified
   }>;
 }
 
@@ -48,6 +65,7 @@ interface AutomationConfig {
   stopOnError?: boolean;
   parameters?: Record<string, unknown>;
   executionTimeout?: number;
+  runtimeTimeout?: number;
 }
 
 interface ExecutionResult {
@@ -70,6 +88,7 @@ class NotebookAutomation {
     this.config = {
       stopOnError: true,
       executionTimeout: 60000, // 60 seconds default
+      runtimeTimeout: 30000, // 30 seconds default
       ...config,
     };
 
@@ -149,8 +168,10 @@ class NotebookAutomation {
 
     // Execute cells sequentially with proper error handling
     for (const [index, cell] of document.cells.entries()) {
+      const cellType = cell.celltype || "code";
+      
       console.log(
-        `🔄 Executing cell ${index + 1}/${document.cells.length}: ${cell.id}`,
+        `🔄 Processing cell ${index + 1}/${document.cells.length}: ${cell.id} (${cellType})`,
       );
       console.log(
         `   Source: ${cell.source.substring(0, 80)}${
@@ -158,7 +179,23 @@ class NotebookAutomation {
         }`,
       );
 
-      const result = await this.executeCell(cell);
+      let result: ExecutionResult;
+
+      // Handle different cell types appropriately
+      if (cellType === "markdown" || cellType === "raw") {
+        // These cell types should be rendered/displayed, not executed
+        console.log(`   📝 Rendering ${cellType} cell (no execution needed)`);
+        result = {
+          success: true,
+          cellId: cell.id,
+          queueId: "",
+          duration: 0,
+        };
+      } else {
+        // Execute code, ai, sql cells
+        result = await this.executeCell(cell);
+      }
+
       this.executionResults.push(result);
 
       if (!result.success) {
@@ -170,7 +207,11 @@ class NotebookAutomation {
           break;
         }
       } else {
-        console.log(`✅ Cell ${cell.id} completed in ${result.duration}ms`);
+        if (cellType === "markdown" || cellType === "raw") {
+          console.log(`✅ ${cellType} cell ${cell.id} rendered successfully`);
+        } else {
+          console.log(`✅ Cell ${cell.id} completed in ${result.duration}ms`);
+        }
       }
     }
 
@@ -186,7 +227,7 @@ class NotebookAutomation {
     );
     console.log(`   Failed cells: ${failedCells.length}`);
     console.log(
-      `📔 Notebook available at: https://app.runt.run/?notebook=${this.notebookId}`,
+      `📔 Notebook available at: ${getNotebookUrl(this.notebookId)}`,
     );
 
     return {
@@ -226,13 +267,14 @@ class NotebookAutomation {
       console.log(`🔗 Sync URL: ${config.syncUrl}`);
       console.log(`📓 Notebook: ${config.notebookId}`);
 
-      // Create adapter with sync backend if AUTH_TOKEN is available
-      const authToken = Deno.env.get("AUTH_TOKEN");
+      // Create adapter with sync backend if auth token is available
+      // Use RUNT_API_KEY with AUTH_TOKEN fallback (new auth priority)
+      const authToken = Deno.env.get("RUNT_API_KEY") || Deno.env.get("AUTH_TOKEN");
       const syncUrl = config.syncUrl || "wss://app.runt.run/livestore";
 
       if (!authToken) {
         throw new Error(
-          "AUTH_TOKEN is required for LiveStore sync in automation mode",
+          "RUNT_API_KEY or AUTH_TOKEN is required for LiveStore sync in automation mode",
         );
       }
 
@@ -304,13 +346,13 @@ class NotebookAutomation {
       let previousIndex: string | null = null;
       for (const cell of document.cells) {
         // Calculate fractional index for proper ordering
-        const fractionalIndex = previousIndex === null
+        const fractionalIndex: string = previousIndex === null
           ? initialFractionalIndex()
           : fractionalIndexBetween(previousIndex, null);
 
         this.store.commit(events.cellCreated2({
           id: cell.id,
-          cellType: "code" as CellType,
+          cellType: (cell.celltype || "code") as CellType,
           fractionalIndex,
           createdBy: this.clientId,
         }));
@@ -594,7 +636,7 @@ class NotebookAutomation {
       failedCells: this.executionResults.filter((r) => !r.success).map((r) =>
         r.cellId
       ),
-      notebookUrl: `https://app.runt.run/?notebook=${this.notebookId}`,
+      notebookUrl: getNotebookUrl(this.notebookId),
     };
   }
 
@@ -602,7 +644,7 @@ class NotebookAutomation {
    * Ensure runtime sessions are available before execution
    */
   private async ensureRuntimeAvailable(_cellId: string): Promise<void> {
-    const maxWait = 10000; // 10 seconds
+    const maxWait = this.config.runtimeTimeout || 30000; // Default 30 seconds
     const startTime = Date.now();
 
     while (Date.now() - startTime < maxWait) {
@@ -675,112 +717,6 @@ class NotebookAutomation {
   }
 }
 
-/**
- * CLI interface for notebook automation
- */
-async function main() {
-  const args = Deno.args;
 
-  if (args.length < 1) {
-    console.log(
-      "Usage: deno run --unstable-broadcast-channel notebook-automation.ts <document-path> [parameters.json]",
-    );
-    console.log("");
-    console.log("Environment variables:");
-    console.log(
-      "  AUTH_TOKEN         - Authentication token (required for sync)",
-    );
-    console.log(
-      "  LIVESTORE_SYNC_URL - LiveStore sync URL (optional, defaults to app.runt.run)",
-    );
-    console.log(
-      "  NOTEBOOK_ID        - Target notebook ID (optional, auto-generated if not set)",
-    );
-    console.log("");
-    console.log("Examples:");
-    console.log(
-      "  deno run --unstable-broadcast-channel notebook-automation.ts example.yml",
-    );
-    console.log(
-      "  deno run --unstable-broadcast-channel notebook-automation.ts document.yml params.json",
-    );
-    console.log(
-      "  AUTH_TOKEN=token deno run --unstable-broadcast-channel notebook-automation.ts doc.yml",
-    );
-    console.log(
-      "  NOTEBOOK_ID=my-nb AUTH_TOKEN=token deno run --unstable-broadcast-channel notebook-automation.ts doc.yml",
-    );
-    Deno.exit(1);
-  }
-
-  const documentPath = args[0];
-  let parameters: Record<string, unknown> = {};
-
-  // Load parameters if provided
-  if (args[1]) {
-    try {
-      const paramContent = await Deno.readTextFile(args[1]);
-      parameters = JSON.parse(paramContent);
-      console.log("📋 Loaded parameters:", Object.keys(parameters));
-    } catch (error) {
-      console.error(
-        "❌ Failed to load parameters:",
-        error instanceof Error ? error.message : String(error),
-      );
-      Deno.exit(1);
-    }
-  }
-
-  // Check if AUTH_TOKEN is available for sync
-  const authToken = Deno.env.get("AUTH_TOKEN");
-  if (!authToken) {
-    console.warn(
-      "⚠️  No AUTH_TOKEN found - this may not work with real execution",
-    );
-    console.warn("   Set AUTH_TOKEN environment variable to enable sync");
-  }
-
-  const automation = new NotebookAutomation({
-    stopOnError: false, // Continue on errors for full document scan
-  });
-
-  try {
-    // Load document
-    console.log(`📖 Loading document: ${documentPath}`);
-    const document = await NotebookAutomation.loadDocument(documentPath);
-
-    // Execute document
-    const _results = await automation.executeDocument(document, parameters);
-    const summary = automation.getExecutionSummary();
-
-    // Report final results
-    if (summary.success) {
-      console.log("🎉 Notebook execution completed successfully!");
-      console.log(`🌐 View results: ${summary.notebookUrl}`);
-      await automation.cleanup();
-      Deno.exit(0);
-    } else {
-      console.error("💥 Notebook execution failed");
-      console.error(`   Failed cells: ${summary.failedCells.join(", ")}`);
-      console.log(`🌐 View partial results: ${summary.notebookUrl}`);
-      await automation.cleanup();
-      Deno.exit(1);
-    }
-  } catch (error) {
-    console.error(
-      "❌ Automation failed:",
-      error instanceof Error ? error.message : String(error),
-    );
-    const summary = automation.getExecutionSummary();
-    console.log(`🌐 Check notebook: ${summary.notebookUrl}`);
-    await automation.cleanup();
-    Deno.exit(1);
-  }
-}
-
-// Run CLI if this is the main module
-if (import.meta.main) {
-  await main();
-}
 
 export { type AutomationConfig, NotebookAutomation };

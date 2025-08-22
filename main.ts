@@ -64,7 +64,13 @@ interface CombinedConfig {
   documentPath: string;
   parametersPath?: string;
   executionTimeout?: number;
+  runtimeTimeout?: number;
   stopOnError?: boolean;
+  mountPaths?: string[];
+  mountReadonly?: boolean;
+  outputDir?: string;
+  indexMountedFiles?: boolean;
+  aiMaxIterations?: number;
 }
 
 /**
@@ -77,9 +83,23 @@ async function runAutomationWithRuntime(
   const random = Math.random().toString(36).substring(2, 8);
   const notebookId = config.notebookId || `automation-${timestamp}-${random}`;
 
+  // Determine the appropriate URL based on environment
+  const getLiveUrl = (notebookId: string): string => {
+    const syncUrl = Deno.env.get("LIVESTORE_SYNC_URL");
+    const devMode = Deno.env.get("DEV_MODE");
+    
+    // Check if we're running locally
+    if (devMode === "true" || (syncUrl && syncUrl.includes("localhost"))) {
+      return `http://localhost:5173/?notebook=${notebookId}`;
+    }
+    
+    // Default to production URL
+    return `https://app.runt.run/?notebook=${notebookId}`;
+  };
+
   console.log("🚀 Starting combined automation + runtime");
   console.log(`📔 Notebook ID: ${notebookId}`);
-  console.log(`🌐 Live URL: https://app.runt.run/?notebook=${notebookId}`);
+  console.log(`🌐 Live URL: ${getLiveUrl(notebookId)}`);
 
   // Set notebook ID in environment for both components
   const originalNotebookId = Deno.env.get("NOTEBOOK_ID");
@@ -99,6 +119,7 @@ async function runAutomationWithRuntime(
       notebookId,
       stopOnError: config.stopOnError ?? true,
       executionTimeout: config.executionTimeout ?? 60000,
+      runtimeTimeout: config.runtimeTimeout ?? 30000,
     });
 
     // Start pyodide runtime agent in background with retry logic
@@ -145,17 +166,44 @@ async function runAutomationWithRuntime(
         }
 
         // Create new runtime agent for each attempt with proper configuration
+        // Use RUNT_API_KEY with AUTH_TOKEN fallback (new auth priority)
+        const authToken = Deno.env.get("RUNT_API_KEY") || Deno.env.get("AUTH_TOKEN") || "";
         const args = [
           "--notebook",
           notebookId,
           "--auth-token",
-          Deno.env.get("AUTH_TOKEN") || "",
+          authToken,
         ];
 
         // Add sync URL if provided
         const syncUrl = Deno.env.get("LIVESTORE_SYNC_URL");
         if (syncUrl) {
           args.push("--sync-url", syncUrl);
+        }
+
+        // Add mount paths if provided
+        if (config.mountPaths && config.mountPaths.length > 0) {
+          for (const mountPath of config.mountPaths) {
+            args.push("--mount", mountPath);
+          }
+          if (config.mountReadonly) {
+            args.push("--mount-readonly");
+          }
+        }
+
+        // Add output directory if provided
+        if (config.outputDir) {
+          args.push("--output-dir", config.outputDir);
+        }
+
+        // Add index mounted files flag if provided
+        if (config.indexMountedFiles) {
+          args.push("--index-mounted-files");
+        }
+
+        // Add AI max iterations if provided
+        if (config.aiMaxIterations) {
+          args.push("--ai-max-iterations", config.aiMaxIterations.toString());
         }
 
         runtimeAgent = new PyodideRuntimeAgent(args);
@@ -371,9 +419,10 @@ async function runAutomationWithRuntime(
 async function main() {
   const args = Deno.args;
 
-  if (args.length < 1) {
+  // Check for help flag
+  if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
     console.log(
-      "Usage: deno run main.ts <document-path> [parameters-path]",
+      "Usage: deno run main.ts <document-path> [parameters-path] [options]",
     );
     console.log("");
     console.log(
@@ -385,31 +434,110 @@ async function main() {
     console.log(
       "  deno run main.ts example.yml parameters.json",
     );
+    console.log("  deno run main.ts example.yml --mount ./data --mount-readonly");
+    console.log("  deno run main.ts example.yml --mount ./scripts --output-dir ./outputs");
+    console.log("  deno run main.ts example.yml --mount ./data --index-mounted-files");
+    console.log("");
+    console.log("Options:");
+    console.log("  --mount <path>     - Mount a host directory (can be used multiple times)");
+    console.log("  --mount-readonly   - Mount directories as read-only");
+    console.log("  --output-dir <path> - Specify output directory for results");
+    console.log("  --index-mounted-files - Index mounted files for AI search");
+    console.log("  --ai-max-iterations <num> - Maximum iterations for AI agent tool calling loops (default: 10)");
+    console.log("  --cell-execution-timeout <sec> - Cell execution timeout in seconds (default: 60)");
+    console.log("  --runtime-timeout <sec> - Runtime session availability timeout in seconds (default: 30)");
     console.log("");
     console.log("Environment variables:");
-    console.log("  AUTH_TOKEN       - Required for LiveStore sync");
-    console.log("  NOTEBOOK_ID      - Optional, auto-generated if not set");
-    console.log("  LIVESTORE_SYNC_URL - Optional sync URL");
+console.log("  RUNT_API_KEY     - Preferred for runtime agents");
+console.log("  AUTH_TOKEN       - Fallback for service-level auth");
+console.log("  NOTEBOOK_ID      - Optional, auto-generated if not set");
+console.log("  LIVESTORE_SYNC_URL - Optional sync URL");
     Deno.exit(1);
   }
 
   const documentPath = args[0];
-  const parametersPath = args[1];
+  
+  // Parse all arguments to determine parameters path and mount options
+  const mountPaths: string[] = [];
+  let mountReadonly = false;
+  let outputDir: string | undefined;
+  let parametersPath: string | undefined;
+  let indexMountedFiles = false;
+  let aiMaxIterations: number | undefined;
+  let cellExecutionTimeout = 60000; // Default 60 seconds in milliseconds
+  let runtimeTimeout = 30000; // Default 30 seconds in milliseconds
 
-  // Check for AUTH_TOKEN
-  if (!Deno.env.get("AUTH_TOKEN")) {
-    console.error("❌ AUTH_TOKEN environment variable is required");
-    console.error("   Make sure your .env file contains AUTH_TOKEN=your-token");
+  for (let i = 1; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--mount" && i + 1 < args.length) {
+      mountPaths.push(args[i + 1]);
+      i++; // Skip next argument
+    } else if (arg === "--mount-readonly") {
+      mountReadonly = true;
+    } else if (arg === "--output-dir" && i + 1 < args.length) {
+      outputDir = args[i + 1];
+      i++; // Skip next argument
+    } else if (arg === "--index-mounted-files") {
+      indexMountedFiles = true;
+    } else if (arg === "--ai-max-iterations" && i + 1 < args.length) {
+      const iterations = parseInt(args[i + 1], 10);
+      if (!isNaN(iterations) && iterations > 0) {
+        aiMaxIterations = iterations;
+      } else {
+        console.error("❌ Invalid ai-max-iterations value. Must be a positive integer.");
+        Deno.exit(1);
+      }
+      i++; // Skip next argument
+    } else if (arg === "--cell-execution-timeout" && i + 1 < args.length) {
+      const timeoutValue = parseInt(args[i + 1], 10);
+      if (!isNaN(timeoutValue) && timeoutValue > 0) {
+        cellExecutionTimeout = timeoutValue * 1000; // Convert to milliseconds
+      } else {
+        console.error("❌ Invalid cell-execution-timeout value. Must be a positive integer.");
+        Deno.exit(1);
+      }
+      i++; // Skip next argument
+    } else if (arg === "--runtime-timeout" && i + 1 < args.length) {
+      const timeoutValue = parseInt(args[i + 1], 10);
+      if (!isNaN(timeoutValue) && timeoutValue > 0) {
+        runtimeTimeout = timeoutValue * 1000; // Convert to milliseconds
+      } else {
+        console.error("❌ Invalid runtime-timeout value. Must be a positive integer.");
+        Deno.exit(1);
+      }
+      i++; // Skip next argument
+    } else if (!arg.startsWith("--") && !parametersPath) {
+      // First non-option argument is the parameters file
+      parametersPath = arg;
+    }
+  }
+
+  // Check for authentication (RUNT_API_KEY preferred, AUTH_TOKEN fallback)
+  const authToken = Deno.env.get("RUNT_API_KEY") || Deno.env.get("AUTH_TOKEN");
+  if (!authToken) {
+    console.error("❌ RUNT_API_KEY or AUTH_TOKEN environment variable is required");
+    console.error("   Make sure your .env file contains either:");
+    console.error("   RUNT_API_KEY=your-runt-api-key (preferred)");
+    console.error("   AUTH_TOKEN=your-auth-token (fallback)");
     Deno.exit(1);
   }
+
+  console.log(`⏱️  Cell execution timeout: ${cellExecutionTimeout / 1000} seconds`);
+  console.log(`⏱️  Runtime timeout: ${runtimeTimeout / 1000} seconds`);
 
   try {
     const result = await runAutomationWithRuntime({
       documentPath,
       parametersPath,
       notebookId: Deno.env.get("NOTEBOOK_ID"),
-      executionTimeout: 60000,
+      executionTimeout: cellExecutionTimeout,
+      runtimeTimeout,
       stopOnError: true,
+      mountPaths: mountPaths.length > 0 ? mountPaths : undefined,
+      mountReadonly,
+      outputDir,
+      indexMountedFiles,
+      aiMaxIterations,
     });
 
     if (result.success) {

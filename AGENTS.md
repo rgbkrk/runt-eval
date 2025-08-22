@@ -26,7 +26,8 @@ CI/CD pipelines, automated testing, and provides a "React version for terminal" 
 
 ### Environment Requirements
 
-- `AUTH_TOKEN`: Required for LiveStore sync
+- `RUNT_API_KEY`: Preferred for runtime agents (new auth priority)
+- `AUTH_TOKEN`: Fallback for service-level authentication
 - `NOTEBOOK_ID`: Optional, auto-generated if not provided
 - `LIVESTORE_SYNC_URL`: Optional, defaults to `wss://app.runt.run/livestore`
 

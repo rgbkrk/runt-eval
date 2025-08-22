@@ -77,8 +77,9 @@ deno task test:error
 Create a `.env` file in the root directory with:
 
 ```bash
-# Required for LiveStore sync
-AUTH_TOKEN=your-runt-auth-token
+# Required for LiveStore sync (RUNT_API_KEY preferred)
+RUNT_API_KEY=your-runt-api-key
+# AUTH_TOKEN=your-runt-auth-token  # Fallback
 
 # Required for Cloudflare monitoring notebooks
 CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
@@ -156,7 +157,7 @@ All notebooks generate:
 ## 🐛 Troubleshooting
 
 **Runtime session timeout**: 
-- Check AUTH_TOKEN is valid
+- Check RUNT_API_KEY or AUTH_TOKEN is valid
 - Verify network connectivity
 
 **Cloudflare API errors**:

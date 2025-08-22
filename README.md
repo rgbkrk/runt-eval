@@ -38,6 +38,9 @@ live results that humans can inspect and collaborate on in real-time.
 - **CI/CD data validation**: Automated notebook-based testing
 - **Collaborative automation**: Share live results with team members
 - **System monitoring**: Basic health checks and status reporting
+- **Data pipeline integration**: Access local datasets with mounted directories
+- **Code reuse**: Import existing Python modules and scripts
+- **Workflow continuity**: Work with existing file-based workflows
 
 ## 📋 Prerequisites
 
@@ -58,6 +61,10 @@ deno task health:simple                         # Simple health check (no depend
 
 # Testing
 deno task test:error                            # Test error handling
+
+# Mounting features (NEW!)
+deno task demo:mount                            # Demo with mounted directories
+deno task automate:mount                        # Run with data directory mounted
 ```
 
 ### Custom Notebooks
@@ -75,17 +82,49 @@ parameters:
 
 cells:
   - id: "setup"
+    celltype: "code"
     source: |
       import pandas as pd
       print(f'Hello from automation! Using {data_size} rows')
 
   - id: "analysis"
+    celltype: "code"
     source: |
       df = pd.DataFrame({'x': range(data_size)})
       print(f'Created DataFrame with {len(df)} rows')
 ```
 
-Then run: `deno task automate:runtime your-notebook.yml`
+Then run: `deno run main.ts your-notebook.yml`
+
+### Host Directory Mounting (NEW!)
+
+Mount host directories for data access:
+
+```bash
+# Mount data directory as read-only
+deno run main.ts notebook.yml --mount ./data --mount-readonly
+
+# Mount multiple directories with output directory
+deno run main.ts notebook.yml --mount ./data --mount ./scripts --output-dir ./outputs
+
+# Mount with vector store indexing for AI search
+deno run main.ts notebook.yml --mount ./data --mount-readonly --index-mounted-files
+
+# Control AI agent iterations
+deno run main.ts notebook.yml --ai-max-iterations 5
+
+# Use in notebooks
+import pandas as pd
+df = pd.read_csv('/mnt/_data/sample.csv')  # Access mounted files
+```
+
+**Features:**
+- **Read-only mounting**: Protect original data with `--mount-readonly`
+- **Multiple directories**: Mount several directories at once
+- **Output synchronization**: Use `/outputs` for results that sync back to host
+- **Automatic file discovery**: Explore mounted directories in Python cells
+- **Vector store indexing**: Enable AI search through mounted files with `--index-mounted-files`
+- **AI agent control**: Limit AI tool calling iterations with `--ai-max-iterations`
 
 ### Parameter Injection
 
@@ -118,7 +157,7 @@ model_type = "random_forest"
 
 ### YAML Notebook Format
 
-Clean, readable configuration format:
+Clean, readable configuration format with support for different cell types:
 
 ```yaml
 metadata:
@@ -133,11 +172,29 @@ parameters:
 
 cells:
   - id: "setup"
+    celltype: "code"
     source: |
       import pandas as pd
       import numpy as np
       print('Starting analysis...')
+
+  - id: "ai-insights"
+    celltype: "ai"
+    source: |
+      Analyze the data and provide insights about patterns and trends.
 ```
+
+#### Cell Types
+
+The YAML format supports different cell types for different purposes:
+
+- **`code`** (default): Executes Python code using the Pyodide runtime
+- **`ai`**: Uses AI to generate insights, analysis, and responses
+- **`markdown`**: Renders markdown content (for documentation)
+- **`sql`**: Executes SQL queries
+- **`raw`**: Raw content display
+
+If `celltype` is not specified, cells default to `"code"` type.
 
 ### Reactive LiveStore Coordination
 
@@ -174,7 +231,8 @@ Reactive Flow:    ✅ No polling      ✅ Immediate cell transitions
 Required in `.env` file:
 
 ```bash
-AUTH_TOKEN=your-auth-token              # Required for LiveStore sync
+RUNT_API_KEY=your-runt-api-key          # Preferred for runtime agents
+# AUTH_TOKEN=your-auth-token            # Fallback for service-level auth
 LIVESTORE_SYNC_URL=wss://app.runt.run   # Optional, defaults correctly  
 NOTEBOOK_ID=custom-id                   # Optional, auto-generated
 ```
@@ -202,7 +260,10 @@ runt-eval/
 │   ├── example.yml               # Example notebook
 │   ├── simple-health-check.yml   # Basic health check
 │   ├── error-test.yml            # Error handling test
+│   ├── mount-demo.yml            # NEW! Mounting feature demo
 │   └── README.md                 # Notebook documentation
+├── data/                         # Example data directory (for mounting)
+├── outputs/                      # Output directory (for results)
 └── .env                         # Environment configuration
 ```
 
@@ -213,7 +274,7 @@ runt-eval/
 **Cells stuck "Queued for execution"**
 
 - Runtime agent not connected to same notebook ID
-- Check AUTH_TOKEN in `.env` file
+- Check RUNT_API_KEY or AUTH_TOKEN in `.env` file
 
 **Import/module errors**
 
@@ -222,7 +283,7 @@ runt-eval/
 
 **LiveStore connection issues**
 
-- Verify `AUTH_TOKEN` is valid
+- Verify `RUNT_API_KEY` or `AUTH_TOKEN` is valid
 - Check internet connection for sync
 
 ### Verification
@@ -254,7 +315,7 @@ await slackWebhook({
 # In GitHub Actions
 - name: Run Data Validation
   run: |
-    echo "AUTH_TOKEN=${{ secrets.AUTH_TOKEN }}" > .env
+    echo "RUNT_API_KEY=${{ secrets.RUNT_API_KEY }}" > .env
     deno task automate:runtime validation-notebook.json
 ```
 
